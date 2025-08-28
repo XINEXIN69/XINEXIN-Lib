@@ -992,12 +992,21 @@ function UI.addNotify(message)
     end)
 end
 
-function UI.addSelectPage(name)
-    local pg = STATE.Pages[name]
-    if pg then
-        pg.Tab.MouseButton1Click:Fire()
+local function selectPage(pg)
+    for _, p in pairs(STATE.Pages) do
+        p.Root.Visible = false
     end
+    pg.Root.Visible = true
+    pg.Container.Position = UDim2.new(0, 16, 0, 0)
+    tween(pg.Container, 0.25, {Position = UDim2.new(0, 0, 0, 0)}, Enum.EasingStyle.Quad, Enum.EasingDirection.Out):Play()
+    STATE.CurrentPage = pg
 end
+
+connect(tab.MouseButton1Click, function()
+    selectPage(pageObj)
+end)
+
+selectPage(pg) 
 
 function UI.SetTheme(theme)
     if typeof(theme) == "string" and Themes[theme] then

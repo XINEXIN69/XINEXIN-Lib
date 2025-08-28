@@ -1,998 +1,941 @@
---[[
-    XINEXIN HUB - Minimal / Flat UI Library for Delta Executor
-    Theme: Dark Yellow Premium
-    Font: Pixel Bold (emulated via Enum.Font.Arcade + bold styling)
-    Text Color: White
-    Window Size: UDim2.new(0, 735, 0, 379)
-    Window Position: UDim2.new(0.26607, 0, 0.26773, 0)
+-- XINEXIN HUB - Minimal / Flat UI Library for Roblox
+-- Author: You
+-- License: MIT
+-- API:
+--   local UIlib = require(...) or loadstring(...)
+--   local UI = UIlib.new(titleString)
+--   UI.addPage(name) -> Page
+--   UI.addNotify(message)
+--   UI.addSelectPage(name)
+--   UI.SetTheme(themeStringOrTable)
+--   UI.Toggle()
+-- Page:
+--   Page.addSection(name) -> Section
+--   Page.addResize(sizeUDim2)
+-- Section:
+--   Section:addButton(name, callback)
+--   Section:addToggle(name, defaultBool, callback)
+--   Section:addTextbox(name, defaultText, callback)
+--   Section:addKeybind(name, defaultKeyCode, callback)
+--   Section:addColorPicker(name, defaultColor3, callback)
+--   Section:addSlider(name, minNumber, maxNumber, defaultNumber, callback)
+--   Section:addDropdown(name, optionsArray, defaultString, callback)
+--   Section:Resize(sizeUDim2)
 
-    Public API
-    UI:
-      - UI.addPage(name)
-      - UI.addNotify(message)
-      - UI.addSelectPage(name)
-      - UI.SetTheme(themeOrTable)
-      - UI.Toggle()
-
-    Page:
-      - Page.addSection(name)
-      - Page.addResize(size)
-
-    Section:
-      - Section:addButton(name, callback)
-      - Section:addToggle(name, default, callback)
-      - Section:addTextbox(name, default, callback)
-      - Section:addKeybind(name, default, callback)
-      - Section:addColorPicker(name, default, callback)
-      - Section:addSlider(name, min, max, default, callback)
-      - Section:addDropdown(name, options, default, callback)
-      - Section:Resize(size)
-]]
-
--- Services
-local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 
-local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
+local UIlib = {}
+UIlib.__index = UIlib
 
--- Helpers
-local function safeParent(gui)
-    gui.Name = "XINEXIN_HUB"
-    local parent = (gethui and gethui()) or (syn and syn.protect_gui and game:GetService("CoreGui")) or game:GetService("CoreGui")
-    -- protect if possible
-    if syn and syn.protect_gui then
-        syn.protect_gui(gui)
-    end
-    gui.Parent = parent
-    return gui
+-- Defaults and theme
+local DEFAULT_TITLE = "XINEXIN HUB"
+local THEMES = {
+    ["Dark Yellow Premium"] = {
+        Background = Color3.fromRGB(18, 18, 18),
+        Primary = Color3.fromRGB(22, 22, 22),
+        Accent = Color3.fromRGB(241, 196, 15),
+        AccentDark = Color3.fromRGB(213, 166, 0),
+        Text = Color3.fromRGB(255, 255, 255),
+        Muted = Color3.fromRGB(130, 130, 130),
+        Hover = Color3.fromRGB(35, 35, 35),
+        PageIdle = Color3.fromRGB(28, 28, 28),
+        PageHover = Color3.fromRGB(45, 45, 45),
+        Shadow = Color3.fromRGB(0, 0, 0)
+    }
+}
+
+-- Utility: UICorner helper
+local function addCorner(instance, radius)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, radius or 8)
+    c.Parent = instance
+    return c
 end
 
-local function make(instance, props, children)
-    local obj = Instance.new(instance)
-    for k, v in pairs(props or {}) do
-        obj[k] = v
-    end
-    for _, child in ipairs(children or {}) do
-        child.Parent = obj
-    end
-    return obj
+-- Utility: UIStroke helper
+local function addStroke(instance, color, thickness, transparency)
+    local s = Instance.new("UIStroke")
+    s.Color = color
+    s.Thickness = thickness or 1
+    s.Transparency = transparency or 0
+    s.Parent = instance
+    return s
 end
 
-local function corner(radius)
-    return make("UICorner", { CornerRadius = UDim.new(0, radius or 8) })
+-- Utility: Hover bounce
+local function bounce(instance)
+    local orig = instance.Position
+    local tw1 = TweenService:Create(instance, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = orig - UDim2.new(0, 0, 0, 2)})
+    local tw2 = TweenService:Create(instance, TweenInfo.new(0.12, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {Position = orig})
+    tw1:Play()
+    tw1.Completed:Connect(function()
+        tw2:Play()
+    end)
 end
 
-local function padding(px)
-    return make("UIPadding", {
-        PaddingTop = UDim.new(0, px or 8),
-        PaddingBottom = UDim.new(0, px or 8),
-        PaddingLeft = UDim.new(0, px or 8),
-        PaddingRight = UDim.new(0, px or 8),
-    })
-end
-
-local function listlayout(dir, pad, sort)
-    return make("UIListLayout", {
-        FillDirection = dir or Enum.FillDirection.Vertical,
-        Padding = UDim.new(0, pad or 8),
-        SortOrder = sort or Enum.SortOrder.LayoutOrder
-    })
-end
-
-local function uiscale(scale)
-    return make("UIScale", { Scale = scale or 1 })
-end
-
-local function tween(o, ti, goal)
-    return TweenService:Create(o, ti, goal)
-end
-
-local function springBounce(btn)
-    local s = btn:FindFirstChildOfClass("UIScale") or uiscale(1); s.Parent = btn
-    local enter = tween(s, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1.05 })
-    local leave = tween(s, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1.0 })
-    btn.MouseEnter:Connect(function() enter:Play() end)
-    btn.MouseLeave:Connect(function() leave:Play() end)
-end
-
-local function attachDrag(frame, handle)
-    handle = handle or frame
+-- Utility: drag handler
+local function makeDraggable(frame, dragHandle)
+    dragHandle = dragHandle or frame
     local dragging = false
     local dragStart, startPos
-    handle.InputBegan:Connect(function(input)
+    dragHandle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = frame.Position
             input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragging = false end
-            end)
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-end
-
--- Theme
-local Themes = {
-    DarkYellowPremium = {
-        Background = Color3.fromRGB(18, 18, 18),
-        Panel = Color3.fromRGB(26, 26, 26),
-        Accent = Color3.fromRGB(255, 199, 44),
-        AccentDim = Color3.fromRGB(205, 159, 35),
-        Stroke = Color3.fromRGB(45, 45, 45),
-        Text = Color3.fromRGB(255, 255, 255),
-        SubText = Color3.fromRGB(210, 210, 210),
-        Hover = Color3.fromRGB(40, 40, 40),
-        Good = Color3.fromRGB(80, 200, 120),
-        Bad = Color3.fromRGB(255, 90, 90)
-    }
-}
-
--- State
-local UI = {}
-local _state = {
-    Theme = Themes.DarkYellowPremium,
-    Pages = {},
-    PageOrder = {},
-    CurrentPage = nil,
-    Blur = nil,
-    Root = nil,
-    Main = nil,
-    PageBar = nil,
-    SectionArea = nil,
-    ToggleIcon = nil,
-    Open = true
-}
-
--- Build GUI
-local function buildRoot()
-    local gui = make("ScreenGui", {
-        ResetOnSpawn = false,
-        ZIndexBehavior = Enum.ZIndexBehavior.Global
-    })
-    safeParent(gui)
-
-    -- Blur (enabled on open only)
-    local blur = Instance.new("BlurEffect")
-    blur.Size = 0
-    blur.Enabled = false
-    blur.Name = "XINEXIN_BLUR"
-    blur.Parent = Lighting
-    _state.Blur = blur
-
-    -- Toggle icon (draggable)
-    local toggle = make("ImageButton", {
-        Name = "ToggleIcon",
-        Size = UDim2.new(0, 42, 0, 42),
-        Position = UDim2.new(0, 24, 0.8, 0),
-        BackgroundColor3 = _state.Theme.Accent,
-        AutoButtonColor = false,
-        Image = "rbxassetid://0"
-    }, {
-        corner(16),
-        uiscale(1)
-    })
-    toggle.Parent = gui
-    attachDrag(toggle)
-    springBounce(toggle)
-    local tstroke = make("UIStroke", { Thickness = 1.5, Color = _state.Theme.Stroke })
-    tstroke.Parent = toggle
-
-    -- Window
-    local main = make("Frame", {
-        Name = "MainWindow",
-        Size = UDim2.new(0, 735, 0, 379),
-        Position = UDim2.new(0.26607, 0, 0.26773, 0),
-        BackgroundColor3 = _state.Theme.Background,
-        BorderSizePixel = 0,
-        Visible = true,
-        ClipsDescendants = false
-    }, {
-        corner(12),
-        make("UIStroke", { Thickness = 1, Color = _state.Theme.Stroke }),
-        uiscale(0.95) -- for open zoom tween
-    })
-    main.Parent = gui
-
-    -- Top bar
-    local topbar = make("Frame", {
-        Name = "TopBar",
-        Size = UDim2.new(1, -16, 0, 40),
-        Position = UDim2.new(0, 8, 0, 8),
-        BackgroundColor3 = _state.Theme.Panel,
-        BorderSizePixel = 0
-    }, {
-        corner(10),
-        make("UIStroke", { Thickness = 1, Color = _state.Theme.Stroke })
-    })
-    topbar.Parent = main
-
-    local title = make("TextLabel", {
-        Name = "Title",
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, -16, 1, 0),
-        Position = UDim2.new(0, 8, 0, 0),
-        Text = "XINEXIN HUB",
-        TextColor3 = _state.Theme.Text,
-        Font = Enum.Font.Arcade,
-        TextSize = 18,
-        TextXAlignment = Enum.TextXAlignment.Left
-    })
-    title.Parent = topbar
-
-    -- Page bar
-    local pagebar = make("Frame", {
-        Name = "PageBar",
-        Size = UDim2.new(0, 180, 1, -64),
-        Position = UDim2.new(0, 8, 0, 56),
-        BackgroundColor3 = _state.Theme.Panel,
-        BorderSizePixel = 0
-    }, {
-        corner(10),
-        make("UIStroke", { Thickness = 1, Color = _state.Theme.Stroke }),
-        padding(8),
-        listlayout(Enum.FillDirection.Vertical, 6)
-    })
-    pagebar.Parent = main
-
-    -- Section area
-    local sectionArea = make("Frame", {
-        Name = "SectionArea",
-        BackgroundColor3 = _state.Theme.Panel,
-        BorderSizePixel = 0,
-        Size = UDim2.new(1, -204, 1, -64),
-        Position = UDim2.new(0, 196, 0, 56),
-        ClipsDescendants = true
-    }, {
-        corner(10),
-        make("UIStroke", { Thickness = 1, Color = _state.Theme.Stroke }),
-        padding(10)
-    })
-    sectionArea.Parent = main
-
-    -- Notification area
-    local notifHolder = make("Frame", {
-        Name = "NotifyHolder",
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
-        Position = UDim2.new(0, 0, 0, 0),
-    }, {
-        padding(10)
-    })
-    notifHolder.Parent = gui
-
-    local notifList = listlayout(Enum.FillDirection.Vertical, 6)
-    notifList.HorizontalAlignment = Enum.HorizontalAlignment.Right
-    notifList.VerticalAlignment = Enum.VerticalAlignment.Top
-    notifHolder:AddChild(notifList)
-
-    -- Dragging main window
-    attachDrag(main, topbar)
-
-    -- Toggle behaviors
-    toggle.MouseButton1Click:Connect(function()
-        UI.Toggle()
-    end)
-
-    _state.Root = gui
-    _state.Main = main
-    _state.PageBar = pagebar
-    _state.SectionArea = sectionArea
-    _state.ToggleIcon = toggle
-
-    -- Open animations (blur + zoom)
-    local function openAnims(isOpen)
-        if isOpen then
-            _state.Blur.Enabled = true
-            tween(_state.Blur, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = 12 }):Play()
-            tween(main:FindFirstChildOfClass("UIScale"), TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1.0 }):Play()
-        else
-            tween(_state.Blur, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = 0 }):Play()
-            task.delay(0.25, function() _state.Blur.Enabled = false end)
-            tween(main:FindFirstChildOfClass("UIScale"), TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 0.95 }):Play()
-        end
-    end
-    openAnims(true)
-
-    -- Theme ripple on load for title
-    title.TextColor3 = _state.Theme.Text
-end
-
--- Theme application
-local function applyTheme()
-    if not _state.Main then return end
-    local theme = _state.Theme
-    local function paint(obj)
-        if obj:IsA("Frame") or obj:IsA("ScrollingFrame") then
-            if obj.Name == "MainWindow" then
-                obj.BackgroundColor3 = theme.Background
-            else
-                obj.BackgroundColor3 = theme.Panel
-            end
-        elseif obj:IsA("TextLabel") or obj:IsA("TextButton") then
-            obj.TextColor3 = theme.Text
-        elseif obj:IsA("UIStroke") then
-            obj.Color = theme.Stroke
-        elseif obj:IsA("ImageButton") or obj:IsA("ImageLabel") then
-            -- toggle icon/backgrounds
-        end
-        for _, ch in ipairs(obj:GetChildren()) do
-            paint(ch)
-        end
-    end
-    paint(_state.Main)
-    if _state.ToggleIcon then
-        _state.ToggleIcon.BackgroundColor3 = theme.Accent
-        local st = _state.ToggleIcon:FindFirstChildOfClass("UIStroke")
-        if st then st.Color = theme.Stroke end
-    end
-end
-
--- UI Build once
-buildRoot()
-applyTheme()
-
--- Utilities
-local function hoverColorize(btn, base, hover)
-    btn.MouseEnter:Connect(function()
-        tween(btn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundColor3 = hover }):Play()
-    end)
-    btn.MouseLeave:Connect(function()
-        tween(btn, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundColor3 = base }):Play()
-    end)
-end
-
-local function makePageButton(name)
-    local theme = _state.Theme
-    local btn = make("TextButton", {
-        Name = "Page_" .. name,
-        Size = UDim2.new(1, 0, 0, 36),
-        BackgroundColor3 = Color3.fromRGB(30,30,30),
-        BorderSizePixel = 0,
-        Text = name,
-        Font = Enum.Font.Arcade,
-        TextSize = 16,
-        TextColor3 = theme.Text,
-        AutoButtonColor = false
-    }, {
-        corner(8),
-        make("UIStroke", { Thickness = 1, Color = theme.Stroke }),
-        uiscale(1)
-    })
-    springBounce(btn)
-    hoverColorize(btn, Color3.fromRGB(30,30,30), theme.Hover)
-    return btn
-end
-
-local function slideInSections(container)
-    local idx = 0
-    for _, ch in ipairs(container:GetChildren()) do
-        if ch:IsA("Frame") and ch.Visible then
-            idx += 1
-            local origin = ch.Position
-            ch.Position = UDim2.new(origin.X.Scale, origin.X.Offset - 24, origin.Y.Scale, origin.Y.Offset)
-            ch.BackgroundTransparency = 0.05
-            task.delay(0.02 * idx, function()
-                tween(ch, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                    Position = origin
-                }):Play()
-            end)
-        end
-    end
-end
-
--- API: UI.addNotify
-function UI.addNotify(message)
-    local theme = _state.Theme
-    local holder = _state.Root:FindFirstChild("NotifyHolder")
-    if not holder then return end
-
-    local bubble = make("Frame", {
-        Size = UDim2.new(0, 260, 0, 40),
-        AnchorPoint = Vector2.new(1, 0),
-        Position = UDim2.new(1, -12, 0, 12),
-        BackgroundColor3 = theme.Panel,
-        BorderSizePixel = 0
-    }, {
-        corner(10),
-        make("UIStroke", { Thickness = 1, Color = theme.Stroke }),
-        padding(8)
-    })
-    bubble.Parent = holder
-
-    local label = make("TextLabel", {
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
-        Text = tostring(message),
-        TextColor3 = theme.Text,
-        Font = Enum.Font.Arcade,
-        TextSize = 16,
-        TextXAlignment = Enum.TextXAlignment.Left
-    })
-    label.Parent = bubble
-
-    bubble.BackgroundTransparency = 1
-    tween(bubble, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 0 }):Play()
-    task.delay(2.0, function()
-        local t = tween(bubble, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { BackgroundTransparency = 1 })
-        t:Play()
-        t.Completed:Wait()
-        bubble:Destroy()
-    end)
-end
-
--- UI.Toggle
-function UI.Toggle()
-    _state.Open = not _state.Open
-    if not _state.Main then return end
-    _state.Main.Visible = _state.Open
-    -- Blur/Zoom transitions
-    if _state.Open then
-        _state.Blur.Enabled = true
-        tween(_state.Blur, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = 12 }):Play()
-        tween(_state.Main:FindFirstChildOfClass("UIScale"), TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 1.0 }):Play()
-    else
-        tween(_state.Blur, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = 0 }):Play()
-        task.delay(0.25, function() _state.Blur.Enabled = false end)
-        tween(_state.Main:FindFirstChildOfClass("UIScale"), TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Scale = 0.95 }):Play()
-    end
-end
-
--- UI.SetTheme
-function UI.SetTheme(theme)
-    if typeof(theme) == "string" and Themes[theme] then
-        _state.Theme = Themes[theme]
-    elseif typeof(theme) == "table" then
-        _state.Theme = theme
-    end
-    applyTheme()
-end
-
--- UI.addPage
-function UI.addPage(name)
-    name = tostring(name or "Page")
-    local theme = _state.Theme
-
-    local btn = makePageButton(name)
-    btn.Parent = _state.PageBar
-
-    local pageContainer = make("ScrollingFrame", {
-        Name = "Page_" .. name,
-        Active = true,
-        ScrollBarThickness = 4,
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, -20, 1, -20),
-        Position = UDim2.new(0, 10, 0, 10),
-        Visible = false
-    }, {
-        listlayout(Enum.FillDirection.Vertical, 10),
-        padding(4)
-    })
-    pageContainer.Parent = _state.SectionArea
-
-    local pageObj = {
-        Name = name,
-        Button = btn,
-        Container = pageContainer,
-        Sections = {}
-    }
-
-    -- Button hover color shift toward accent on focus
-    btn.MouseEnter:Connect(function()
-        tween(btn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextColor3 = theme.Accent }):Play()
-    end)
-    btn.MouseLeave:Connect(function()
-        tween(btn, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { TextColor3 = theme.Text }):Play()
-    end)
-
-    btn.MouseButton1Click:Connect(function()
-        UI.addSelectPage(name)
-    end)
-
-    -- Page public API
-    function pageObj.addSection(secName)
-        local section = {}
-
-        local frame = make("Frame", {
-            Name = "Section_" .. tostring(secName),
-            BackgroundColor3 = theme.Background,
-            BorderSizePixel = 0,
-            Size = UDim2.new(1, 0, 0, 56),
-            ClipsDescendants = true
-        }, {
-            corner(10),
-            make("UIStroke", { Thickness = 1, Color = theme.Stroke }),
-            padding(8),
-            listlayout(Enum.FillDirection.Vertical, 6)
-        })
-        frame.Parent = pageContainer
-
-        local title = make("TextLabel", {
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, 18),
-            Text = tostring(secName),
-            TextColor3 = theme.Accent,
-            Font = Enum.Font.Arcade,
-            TextSize = 16,
-            TextXAlignment = Enum.TextXAlignment.Left
-        })
-        title.Parent = frame
-
-        -- Content holder
-        local content = make("Frame", {
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y
-        }, {
-            listlayout(Enum.FillDirection.Vertical, 6)
-        })
-        content.Parent = frame
-
-        local function makeRow(height)
-            local row = make("Frame", {
-                BackgroundColor3 = theme.Panel,
-                BorderSizePixel = 0,
-                Size = UDim2.new(1, 0, 0, height or 32)
-            }, {
-                corner(8),
-                make("UIStroke", { Thickness = 1, Color = theme.Stroke }),
-                padding(8)
-            })
-            row.Parent = content
-            return row
-        end
-
-        local function autoResizeSection()
-            -- Resize section to fit content
-            local total = 18 + 8 -- title + top padding
-            for _, ch in ipairs(content:GetChildren()) do
-                if ch:IsA("Frame") then
-                    total += ch.Size.Y.Offset + 6
-                end
-            end
-            total += 8 -- bottom padding
-            frame.Size = UDim2.new(1, 0, 0, total)
-        end
-
-        -- Components
-        function section:addButton(label, callback)
-            local row = makeRow(32)
-            local btn = make("TextButton", {
-                BackgroundColor3 = theme.Accent,
-                BorderSizePixel = 0,
-                Size = UDim2.new(0, 120, 1, 0),
-                Text = tostring(label),
-                Font = Enum.Font.Arcade,
-                TextSize = 16,
-                TextColor3 = Color3.new(0,0,0),
-                AutoButtonColor = false
-            }, {
-                corner(8),
-                uiscale(1)
-            })
-            btn.Parent = row
-            springBounce(btn)
-            hoverColorize(btn, theme.Accent, theme.AccentDim)
-            btn.MouseButton1Click:Connect(function()
-                if callback then pcall(callback) end
-            end)
-            autoResizeSection()
-            return btn
-        end
-
-        function section:addToggle(label, default, callback)
-            local row = makeRow(32)
-            local left = make("TextLabel", {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, -80, 1, 0),
-                Text = tostring(label),
-                Font = Enum.Font.Arcade,
-                TextSize = 16,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextColor3 = theme.Text
-            })
-            left.Parent = row
-
-            local toggle = make("TextButton", {
-                Size = UDim2.new(0, 64, 0, 26),
-                Position = UDim2.new(1, -72, 0.5, -13),
-                BackgroundColor3 = Color3.fromRGB(55,55,55),
-                Text = "",
-                AutoButtonColor = false
-            }, {
-                corner(13)
-            })
-            toggle.Parent = row
-
-            local knob = make("Frame", {
-                Size = UDim2.new(0, 24, 0, 24),
-                Position = UDim2.new(0, 1, 0.5, -12),
-                BackgroundColor3 = Color3.fromRGB(200,200,200),
-                BorderSizePixel = 0
-            }, { corner(12) })
-            knob.Parent = toggle
-
-            local on = default and true or false
-            local function render()
-                tween(toggle, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                    BackgroundColor3 = on and theme.Good or Color3.fromRGB(55,55,55)
-                }):Play()
-                tween(knob, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                    Position = on and UDim2.new(1, -25, 0.5, -12) or UDim2.new(0, 1, 0.5, -12),
-                    BackgroundColor3 = on and Color3.fromRGB(255,255,255) or Color3.fromRGB(200,200,200)
-                }):Play()
-            end
-            render()
-
-            toggle.MouseButton1Click:Connect(function()
-                on = not on
-                render()
-                if callback then pcall(callback, on) end
-            end)
-            autoResizeSection()
-            return toggle, function(v) on = v; render() end
-        end
-
-        function section:addTextbox(label, default, callback)
-            local row = makeRow(32)
-            local left = make("TextLabel", {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(0.5, -6, 1, 0),
-                Text = tostring(label),
-                Font = Enum.Font.Arcade,
-                TextSize = 16,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextColor3 = theme.Text
-            })
-            left.Parent = row
-
-            local box = make("TextBox", {
-                Size = UDim2.new(0.5, -6, 1, 0),
-                Position = UDim2.new(0.5, 6, 0, 0),
-                BackgroundColor3 = Color3.fromRGB(34,34,34),
-                Text = tostring(default or ""),
-                Font = Enum.Font.Arcade,
-                TextSize = 16,
-                TextColor3 = theme.Text,
-                ClearTextOnFocus = false
-            }, {
-                corner(8),
-                make("UIStroke", { Thickness = 1, Color = theme.Stroke }),
-                padding(6)
-            })
-            box.Parent = row
-
-            box.FocusLost:Connect(function(enterPressed)
-                if callback then pcall(callback, box.Text) end
-            end)
-            autoResizeSection()
-            return box
-        end
-
-        function section:addKeybind(label, defaultKeyCode, callback)
-            local row = makeRow(32)
-            local left = make("TextLabel", {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, -120, 1, 0),
-                Text = tostring(label),
-                Font = Enum.Font.Arcade,
-                TextSize = 16,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextColor3 = theme.Text
-            })
-            left.Parent = row
-
-            local btn = make("TextButton", {
-                Size = UDim2.new(0, 110, 1, 0),
-                Position = UDim2.new(1, -110, 0, 0),
-                BackgroundColor3 = Color3.fromRGB(34,34,34),
-                Text = defaultKeyCode and defaultKeyCode.Name or "Set Key",
-                Font = Enum.Font.Arcade,
-                TextSize = 16,
-                TextColor3 = theme.SubText,
-                AutoButtonColor = false
-            }, { corner(8), make("UIStroke", { Thickness = 1, Color = theme.Stroke }) })
-            btn.Parent = row
-            hoverColorize(btn, Color3.fromRGB(34,34,34), theme.Hover)
-            springBounce(btn)
-
-            local current = defaultKeyCode
-            btn.MouseButton1Click:Connect(function()
-                btn.Text = "Press..."
-                local conn; conn = UserInputService.InputBegan:Connect(function(input, gpe)
-                    if gpe then return end
-                    if input.UserInputType == Enum.UserInputType.Keyboard then
-                        current = input.KeyCode
-                        btn.Text = current.Name
-                        if callback then pcall(callback, current) end
-                        conn:Disconnect()
-                    end
-                end)
-            end)
-
-            -- Also invoke callback on key press
-            UserInputService.InputBegan:Connect(function(input, gpe)
-                if gpe then return end
-                if current and input.KeyCode == current then
-                    if callback then pcall(callback, current, true) end
-                end
-            end)
-
-            autoResizeSection()
-            return function(setKeyCode)
-                current = setKeyCode
-                btn.Text = current and current.Name or "Set Key"
-            end
-        end
-
-        function section:addColorPicker(label, defaultColor, callback)
-            local row = makeRow(64)
-            local left = make("TextLabel", {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, -160, 0, 20),
-                Text = tostring(label),
-                Font = Enum.Font.Arcade,
-                TextSize = 16,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextColor3 = theme.Text
-            })
-            left.Parent = row
-
-            local preview = make("Frame", {
-                Size = UDim2.new(0, 32, 0, 32),
-                Position = UDim2.new(1, -40, 0, 8),
-                BackgroundColor3 = defaultColor or theme.Accent,
-                BorderSizePixel = 0
-            }, { corner(8), make("UIStroke", { Thickness = 1, Color = theme.Stroke }) })
-            preview.Parent = row
-
-            -- Simple palette
-            local palette = make("Frame", {
-                Size = UDim2.new(1, -60, 0, 32),
-                Position = UDim2.new(0, 0, 0, 28),
-                BackgroundTransparency = 1
-            }, {
-                listlayout(Enum.FillDirection.Horizontal, 6)
-            })
-            palette.Parent = row
-
-            local colors = {
-                theme.Accent, theme.AccentDim,
-                Color3.fromRGB(255,90,90), Color3.fromRGB(80,200,120),
-                Color3.fromRGB(90,170,255), Color3.fromRGB(190,90,255),
-                Color3.fromRGB(255,160,70), Color3.fromRGB(255,255,255)
-            }
-
-            for _, c in ipairs(colors) do
-                local swatch = make("TextButton", {
-                    Size = UDim2.new(0, 28, 0, 28),
-                    BackgroundColor3 = c,
-                    Text = "",
-                    AutoButtonColor = false
-                }, { corner(6), make("UIStroke", { Thickness = 1, Color = theme.Stroke }) })
-                swatch.Parent = palette
-                hoverColorize(swatch, c, c:Lerp(Color3.new(1,1,1), 0.08))
-                swatch.MouseButton1Click:Connect(function()
-                    preview.BackgroundColor3 = c
-                    if callback then pcall(callback, c) end
-                end)
-            end
-
-            autoResizeSection()
-            return function(c)
-                preview.BackgroundColor3 = c
-                if callback then pcall(callback, c) end
-            end
-        end
-
-        function section:addSlider(label, min, max, default, callback)
-            min = tonumber(min) or 0
-            max = tonumber(max) or 100
-            default = math.clamp(tonumber(default) or min, min, max)
-
-            local row = makeRow(40)
-            local top = make("TextLabel", {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 0, 16),
-                Text = string.format("%s: %d", tostring(label), default),
-                Font = Enum.Font.Arcade,
-                TextSize = 16,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextColor3 = theme.Text
-            })
-            top.Parent = row
-
-            local bar = make("Frame", {
-                Size = UDim2.new(1, -4, 0, 8),
-                Position = UDim2.new(0, 2, 0, 24),
-                BackgroundColor3 = Color3.fromRGB(40,40,40),
-                BorderSizePixel = 0
-            }, { corner(4) })
-            bar.Parent = row
-
-            local fill = make("Frame", {
-                Size = UDim2.new((default - min)/(max - min), 0, 1, 0),
-                BackgroundColor3 = theme.Accent,
-                BorderSizePixel = 0
-            }, { corner(4) })
-            fill.Parent = bar
-
-            local dragging = false
-            local function setFromX(x)
-                local a = bar.AbsolutePosition.X
-                local w = bar.AbsoluteSize.X
-                local alpha = math.clamp((x - a) / math.max(1,w), 0, 1)
-                local val = math.floor(min + alpha * (max - min) + 0.5)
-                fill.Size = UDim2.new(alpha, 0, 1, 0)
-                top.Text = string.format("%s: %d", tostring(label), val)
-                if callback then pcall(callback, val) end
-            end
-            bar.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    dragging = true
-                    setFromX(input.Position.X)
-                end
-            end)
-            UserInputService.InputChanged:Connect(function(input)
-                if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                    setFromX(input.Position.X)
-                end
-            end)
-            UserInputService.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
                 end
             end)
+        end
+    end)
+    dragHandle.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            local connection
+            connection = RunService.RenderStepped:Connect(function()
+                if not dragging then
+                    if connection then connection:Disconnect() end
+                    return
+                end
+                local delta = UserInputService:GetMouseLocation() - dragStart
+                frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end)
+        end
+    end)
+end
 
-            autoResizeSection()
-            return function(val)
-                val = math.clamp(val, min, max)
-                local alpha = (val - min) / (max - min)
-                fill.Size = UDim2.new(alpha, 0, 1, 0)
-                top.Text = string.format("%s: %d", tostring(label), val)
-                if callback then pcall(callback, val) end
-            end
+-- Utility: blur+zoom
+local function ensureBlur()
+    local blur = Lighting:FindFirstChild("XINEXIN_BLUR")
+    if not blur then
+        blur = Instance.new("BlurEffect")
+        blur.Name = "XINEXIN_BLUR"
+        blur.Enabled = false
+        blur.Size = 0
+        blur.Parent = Lighting
+    end
+    return blur
+end
+
+-- Utility: create text label
+local function makeText(parent, text, theme, size, bold)
+    local lbl = Instance.new("TextLabel")
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text or ""
+    lbl.TextColor3 = theme.Text
+    lbl.Font = Enum.Font.Arcade
+    lbl.TextSize = size or 16
+    lbl.RichText = false
+    lbl.Parent = parent
+    return lbl
+end
+
+-- Utility: tween color on hover
+local function hoverColorize(button, idleColor, hoverColor)
+    button.BackgroundColor3 = idleColor
+    button.MouseEnter:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.15), {BackgroundColor3 = hoverColor}):Play()
+        bounce(button)
+    end)
+    button.MouseLeave:Connect(function()
+        TweenService:Create(button, TweenInfo.new(0.15), {BackgroundColor3 = idleColor}):Play()
+    end)
+end
+
+-- Constructor
+function UIlib.new(title)
+    title = title or DEFAULT_TITLE
+    local self = setmetatable({}, UIlib)
+
+    -- Theme state
+    self.Theme = THEMES["Dark Yellow Premium"]
+
+    -- ScreenGui
+    local screen = Instance.new("ScreenGui")
+    screen.Name = "XINEXIN_UI"
+    screen.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    screen.ResetOnSpawn = false
+    screen.IgnoreGuiInset = true
+    screen.Parent = game:GetService("CoreGui")
+
+    -- UIScale for zoom-in
+    local uiScale = Instance.new("UIScale")
+    uiScale.Scale = 0.95
+    uiScale.Parent = screen
+
+    -- Toggle icon
+    local toggleIcon = Instance.new("TextButton")
+    toggleIcon.Name = "ToggleIcon"
+    toggleIcon.Size = UDim2.new(0, 34, 0, 34)
+    toggleIcon.Position = UDim2.new(0, 20, 0.5, 0)
+    toggleIcon.BackgroundColor3 = self.Theme.Accent
+    toggleIcon.Text = "≡"
+    toggleIcon.TextColor3 = Color3.fromRGB(0, 0, 0)
+    toggleIcon.Font = Enum.Font.Arcade
+    toggleIcon.TextSize = 18
+    addCorner(toggleIcon, 8)
+    addStroke(toggleIcon, self.Theme.AccentDark, 1, 0.2)
+    toggleIcon.Parent = screen
+    makeDraggable(toggleIcon)
+
+    -- Main window
+    local main = Instance.new("Frame")
+    main.Name = "Window"
+    main.Size = UDim2.new(0, 735, 0, 379)
+    main.Position = UDim2.new(0.26607, 0, 0.26773, 0)
+    main.BackgroundColor3 = self.Theme.Background
+    addCorner(main, 10)
+    addStroke(main, self.Theme.Shadow, 1, 0.8)
+    main.Parent = screen
+
+    -- Shadow (subtle)
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://5028857084"
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.7
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(24, 24, 276, 276)
+    shadow.Size = UDim2.new(1, 24, 1, 24)
+    shadow.Position = UDim2.new(0, -12, 0, -8)
+    shadow.ZIndex = 0
+    shadow.Parent = main
+
+    -- Top bar
+    local topbar = Instance.new("Frame")
+    topbar.Name = "TopBar"
+    topbar.Size = UDim2.new(1, 0, 0, 40)
+    topbar.BackgroundColor3 = self.Theme.Primary
+    addCorner(topbar, 10)
+    topbar.Parent = main
+
+    local titleLbl = makeText(topbar, title, self.Theme, 18, true)
+    titleLbl.Size = UDim2.new(1, -20, 1, 0)
+    titleLbl.Position = UDim2.new(0, 10, 0, 0)
+    titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- Page bar
+    local pagebar = Instance.new("Frame")
+    pagebar.Name = "PageBar"
+    pagebar.Size = UDim2.new(0, 180, 1, -40)
+    pagebar.Position = UDim2.new(0, 0, 0, 40)
+    pagebar.BackgroundColor3 = self.Theme.Primary
+    addCorner(pagebar, 10)
+    pagebar.Parent = main
+
+    local pageList = Instance.new("UIListLayout")
+    pageList.Padding = UDim.new(0, 6)
+    pageList.SortOrder = Enum.SortOrder.LayoutOrder
+    pageList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    pageList.VerticalAlignment = Enum.VerticalAlignment.Begin
+    pageList.Parent = pagebar
+
+    local pagePad = Instance.new("UIPadding")
+    pagePad.PaddingTop = UDim.new(0, 10)
+    pagePad.PaddingLeft = UDim.new(0, 10)
+    pagePad.PaddingRight = UDim.new(0, 10)
+    pagePad.Parent = pagebar
+
+    -- Section area
+    local sectionArea = Instance.new("Frame")
+    sectionArea.Name = "SectionArea"
+    sectionArea.Size = UDim2.new(1, -200, 1, -50)
+    sectionArea.Position = UDim2.new(0, 190, 0, 45)
+    sectionArea.BackgroundColor3 = self.Theme.Primary
+    addCorner(sectionArea, 10)
+    sectionArea.Parent = main
+
+    local sectionContainer = Instance.new("Frame")
+    sectionContainer.Name = "Pages"
+    sectionContainer.BackgroundTransparency = 1
+    sectionContainer.Size = UDim2.new(1, -16, 1, -16)
+    sectionContainer.Position = UDim2.new(0, 8, 0, 8)
+    sectionContainer.Parent = sectionArea
+
+    -- Layout of pages (stack but only 1 visible)
+    local pagesFolder = Instance.new("Folder")
+    pagesFolder.Name = "PageStorage"
+    pagesFolder.Parent = sectionContainer
+
+    -- State
+    self._screen = screen
+    self._main = main
+    self._toggleIcon = toggleIcon
+    self._uiScale = uiScale
+    self._topbar = topbar
+    self._pagebar = pagebar
+    self._sectionArea = sectionArea
+    self._pagesFolder = pagesFolder
+    self._pageButtons = {}
+    self._pages = {}
+    self._selected = nil
+    self._blur = ensureBlur()
+    self._visible = true
+
+    -- Drag window
+    makeDraggable(main, topbar)
+
+    -- Toggle logic
+    toggleIcon.MouseButton1Click:Connect(function()
+        self.Toggle()
+    end)
+
+    -- Open with blur + zoom
+    local function openAnim()
+        self._blur.Enabled = true
+        TweenService:Create(self._blur, TweenInfo.new(0.25, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = 18}):Play()
+        TweenService:Create(uiScale, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 1}):Play()
+        main.Visible = true
+        toggleIcon.BackgroundColor3 = self.Theme.Accent
+    end
+    local function closeAnim()
+        TweenService:Create(self._blur, TweenInfo.new(0.2, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {Size = 0}):Play()
+        task.delay(0.2, function()
+            self._blur.Enabled = false
+        end)
+        TweenService:Create(uiScale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 0.96}):Play()
+        main.Visible = false
+        toggleIcon.BackgroundColor3 = self.Theme.AccentDark
+    end
+
+    function self.Toggle()
+        self._visible = not self._visible
+        if self._visible then openAnim() else closeAnim() end
+    end
+
+    -- Notifications container
+    local notifyContainer = Instance.new("Frame")
+    notifyContainer.Name = "Notifications"
+    notifyContainer.AnchorPoint = Vector2.new(1, 0)
+    notifyContainer.Position = UDim2.new(1, -14, 0, 14)
+    notifyContainer.Size = UDim2.new(0, 280, 1, -28)
+    notifyContainer.BackgroundTransparency = 1
+    notifyContainer.Parent = screen
+
+    local notifyList = Instance.new("UIListLayout")
+    notifyList.SortOrder = Enum.SortOrder.LayoutOrder
+    notifyList.Padding = UDim.new(0, 8)
+    notifyList.HorizontalAlignment = Enum.HorizontalAlignment.Right
+    notifyList.Parent = notifyContainer
+
+    -- API: addNotify
+    function self.addNotify(message)
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(0, 280, 0, 46)
+        card.BackgroundColor3 = self.Theme.Primary
+        card.BackgroundTransparency = 0.05
+        card.AnchorPoint = Vector2.new(1, 0)
+        addCorner(card, 8)
+        addStroke(card, self.Theme.Accent, 1, 0.5)
+        card.Parent = notifyContainer
+
+        local bar = Instance.new("Frame")
+        bar.Size = UDim2.new(0, 4, 1, 0)
+        bar.Position = UDim2.new(0, 0, 0, 0)
+        bar.BackgroundColor3 = self.Theme.Accent
+        addCorner(bar, 4)
+        bar.Parent = card
+
+        local txt = makeText(card, tostring(message), self.Theme, 16, true)
+        txt.TextXAlignment = Enum.TextXAlignment.Left
+        txt.Position = UDim2.new(0, 10, 0, 0)
+        txt.Size = UDim2.new(1, -20, 1, 0)
+
+        card.BackgroundTransparency = 1
+        txt.TextTransparency = 1
+        bar.Size = UDim2.new(0, 0, 1, 0)
+
+        TweenService:Create(card, TweenInfo.new(0.2), {BackgroundTransparency = 0.05}):Play()
+        TweenService:Create(txt, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
+        TweenService:Create(bar, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = UDim2.new(0, 6, 1, 0)}):Play()
+
+        task.delay(2.2, function()
+            local t1 = TweenService:Create(card, TweenInfo.new(0.2), {BackgroundTransparency = 1})
+            local t2 = TweenService:Create(txt, TweenInfo.new(0.2), {TextTransparency = 1})
+            local t3 = TweenService:Create(bar, TweenInfo.new(0.2), {Size = UDim2.new(0, 0, 1, 0)})
+            t1:Play(); t2:Play(); t3:Play()
+            t1.Completed:Connect(function()
+                card:Destroy()
+            end)
+        end)
+    end
+
+    -- API: SetTheme
+    function self.SetTheme(t)
+        if type(t) == "string" then
+            local found = THEMES[t]
+            if found then self.Theme = found end
+        elseif type(t) == "table" then
+            self.Theme = t
+        end
+        -- Apply key surfaces
+        topbar.BackgroundColor3 = self.Theme.Primary
+        pagebar.BackgroundColor3 = self.Theme.Primary
+        sectionArea.BackgroundColor3 = self.Theme.Primary
+        main.BackgroundColor3 = self.Theme.Background
+        titleLbl.TextColor3 = self.Theme.Text
+        toggleIcon.BackgroundColor3 = self._visible and self.Theme.Accent or self.Theme.AccentDark
+    end
+
+    -- API: addPage
+    function self.addPage(name)
+        name = tostring(name or "Page")
+        local pageButton = Instance.new("TextButton")
+        pageButton.Name = "Page_" .. name
+        pageButton.Size = UDim2.new(1, -20, 0, 34)
+        pageButton.BackgroundColor3 = self.Theme.PageIdle
+        pageButton.Text = name
+        pageButton.TextColor3 = self.Theme.Text
+        pageButton.TextSize = 16
+        pageButton.Font = Enum.Font.Arcade
+        pageButton.AutoButtonColor = false
+        addCorner(pageButton, 8)
+        addStroke(pageButton, self.Theme.Shadow, 1, 0.85)
+        pageButton.Parent = pagebar
+        hoverColorize(pageButton, self.Theme.PageIdle, self.Theme.PageHover)
+
+        local pageFrame = Instance.new("Frame")
+        pageFrame.Name = "PageFrame_" .. name
+        pageFrame.BackgroundTransparency = 1
+        pageFrame.Visible = false
+        pageFrame.Size = UDim2.new(1, 0, 1, 0)
+        pageFrame.Parent = pagesFolder
+
+        local pageScroll = Instance.new("ScrollingFrame")
+        pageScroll.Name = "SectionScroll"
+        pageScroll.BackgroundTransparency = 1
+        pageScroll.BorderSizePixel = 0
+        pageScroll.ScrollBarThickness = 6
+        pageScroll.ScrollBarImageColor3 = self.Theme.Accent
+        pageScroll.Size = UDim2.new(1, 0, 1, 0)
+        pageScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+        pageScroll.Parent = pageFrame
+
+        local sectionList = Instance.new("UIListLayout")
+        sectionList.Padding = UDim.new(0, 10)
+        sectionList.SortOrder = Enum.SortOrder.LayoutOrder
+        sectionList.Parent = pageScroll
+
+        local pad = Instance.new("UIPadding")
+        pad.PaddingTop = UDim.new(0, 10)
+        pad.PaddingLeft = UDim.new(0, 10)
+        pad.PaddingRight = UDim.new(0, 10)
+        pad.PaddingBottom = UDim.new(0, 10)
+        pad.Parent = pageScroll
+
+        sectionList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            pageScroll.CanvasSize = UDim2.new(0, 0, 0, sectionList.AbsoluteContentSize.Y + 20)
+        end)
+
+        local Page = {}
+        Page._name = name
+        Page._button = pageButton
+        Page._frame = pageFrame
+        Page._scroll = pageScroll
+        Page._sections = {}
+
+        function Page.addResize(size)
+            pageScroll.Size = size
         end
 
-        function section:addDropdown(label, options, default, callback)
-            options = options or {}
-            local row = makeRow(32)
-            local left = make("TextLabel", {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, -150, 1, 0),
-                Text = tostring(label),
-                Font = Enum.Font.Arcade,
-                TextSize = 16,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                TextColor3 = theme.Text
-            })
-            left.Parent = row
+        -- Select logic
+        pageButton.MouseButton1Click:Connect(function()
+            self.addSelectPage(name)
+        end)
 
-            local btn = make("TextButton", {
-                Size = UDim2.new(0, 140, 1, 0),
-                Position = UDim2.new(1, -140, 0, 0),
-                BackgroundColor3 = Color3.fromRGB(34,34,34),
-                Text = tostring(default or "Select"),
-                Font = Enum.Font.Arcade,
-                TextSize = 16,
-                TextColor3 = theme.SubText,
-                AutoButtonColor = false
-            }, { corner(8), make("UIStroke", { Thickness = 1, Color = theme.Stroke }) })
-            btn.Parent = row
-            hoverColorize(btn, Color3.fromRGB(34,34,34), theme.Hover)
-            springBounce(btn)
+        -- API: addSection
+        function Page.addSection(sectionName)
+            sectionName = tostring(sectionName or "Section")
+            local sectionFrame = Instance.new("Frame")
+            sectionFrame.Name = "Section_" .. sectionName
+            sectionFrame.Size = UDim2.new(1, -10, 0, 56)
+            sectionFrame.BackgroundColor3 = self.Theme.Background
+            addCorner(sectionFrame, 8)
+            addStroke(sectionFrame, self.Theme.Shadow, 1, 0.85)
+            sectionFrame.Parent = pageScroll
 
-            local listFrame = make("Frame", {
-                Size = UDim2.new(0, 140, 0, 0),
-                Position = UDim2.new(1, -140, 0, 34),
-                BackgroundColor3 = Color3.fromRGB(26,26,26),
-                BorderSizePixel = 0,
-                Visible = false
-            }, { corner(8), make("UIStroke", { Thickness = 1, Color = theme.Stroke }), padding(6), listlayout(Enum.FillDirection.Vertical, 6) })
-            listFrame.Parent = row
+            local header = makeText(sectionFrame, sectionName, self.Theme, 16, true)
+            header.Size = UDim2.new(1, -20, 0, 22)
+            header.Position = UDim2.new(0, 10, 0, 6)
+            header.TextXAlignment = Enum.TextXAlignment.Left
 
-            local function populate()
-                for _, ch in ipairs(listFrame:GetChildren()) do
-                    if ch:IsA("TextButton") then ch:Destroy() end
-                end
-                for _, opt in ipairs(options) do
-                    local o = make("TextButton", {
-                        Size = UDim2.new(1, 0, 0, 26),
-                        BackgroundColor3 = Color3.fromRGB(34,34,34),
-                        Text = tostring(opt),
-                        Font = Enum.Font.Arcade,
-                        TextSize = 14,
-                        TextColor3 = theme.Text,
-                        AutoButtonColor = false
-                    }, { corner(6) })
-                    o.Parent = listFrame
-                    hoverColorize(o, Color3.fromRGB(34,34,34), theme.Hover)
-                    o.MouseButton1Click:Connect(function()
-                        btn.Text = o.Text
-                        listFrame.Visible = false
-                        tween(listFrame, TweenInfo.new(0.12), { Size = UDim2.new(0, 140, 0, 0) }):Play()
-                        if callback then pcall(callback, o.Text) end
-                    end)
-                end
-                local count = #options
-                tween(listFrame, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                    Size = UDim2.new(0, 140, 0, math.min(26*count + 12, 160))
-                }):Play()
-            end
+            local content = Instance.new("Frame")
+            content.Name = "Content"
+            content.BackgroundTransparency = 1
+            content.Size = UDim2.new(1, -20, 1, -32)
+            content.Position = UDim2.new(0, 10, 0, 28)
+            content.Parent = sectionFrame
 
-            btn.MouseButton1Click:Connect(function()
-                if listFrame.Visible then
-                    listFrame.Visible = false
-                    tween(listFrame, TweenInfo.new(0.12), { Size = UDim2.new(0, 140, 0, 0) }):Play()
-                else
-                    listFrame.Visible = true
-                    populate()
-                end
+            local layout = Instance.new("UIListLayout")
+            layout.Padding = UDim.new(0, 6)
+            layout.SortOrder = Enum.SortOrder.LayoutOrder
+            layout.Parent = content
+
+            layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                sectionFrame.Size = UDim2.new(1, -10, 0, math.max(56, layout.AbsoluteContentSize.Y + 38))
             end)
 
-            autoResizeSection()
-            return {
-                SetOptions = function(newOptions)
-                    options = newOptions or {}
-                    if listFrame.Visible then populate() end
-                end,
-                SetValue = function(val)
-                    btn.Text = tostring(val)
-                    if callback then pcall(callback, btn.Text) end
+            -- Helper control factory
+            local function baseControl(height)
+                local holder = Instance.new("Frame")
+                holder.BackgroundColor3 = self.Theme.Primary
+                holder.Size = UDim2.new(1, 0, 0, height)
+                addCorner(holder, 6)
+                addStroke(holder, self.Theme.Shadow, 1, 0.85)
+                holder.Parent = content
+                return holder
+            end
+
+            local Section = {}
+            Section._frame = sectionFrame
+            Section._content = content
+
+            function Section:Resize(size)
+                sectionFrame.Size = size
+            end
+
+            -- Button
+            function Section:addButton(text, callback)
+                local holder = baseControl(34)
+                local btn = Instance.new("TextButton")
+                btn.BackgroundTransparency = 1
+                btn.Size = UDim2.new(1, -14, 1, 0)
+                btn.Position = UDim2.new(0, 7, 0, 0)
+                btn.Text = tostring(text or "Button")
+                btn.TextColor3 = self.Theme.Text
+                btn.Font = Enum.Font.Arcade
+                btn.TextSize = 16
+                btn.AutoButtonColor = false
+                btn.Parent = holder
+                hoverColorize(holder, self.Theme.Primary, self.Theme.Hover)
+                btn.MouseButton1Click:Connect(function()
+                    if callback then
+                        task.spawn(callback)
+                    end
+                end)
+                return btn
+            end
+
+            -- Toggle
+            function Section:addToggle(text, default, callback)
+                default = default == true
+                local holder = baseControl(34)
+                hoverColorize(holder, self.Theme.Primary, self.Theme.Hover)
+
+                local lbl = makeText(holder, tostring(text or "Toggle"), self.Theme, 16, true)
+                lbl.Size = UDim2.new(1, -60, 1, 0)
+                lbl.Position = UDim2.new(0, 10, 0, 0)
+                lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+                local tgl = Instance.new("TextButton")
+                tgl.Size = UDim2.new(0, 40, 0, 22)
+                tgl.Position = UDim2.new(1, -50, 0.5, -11)
+                tgl.BackgroundColor3 = default and self.Theme.Accent or self.Theme.PageIdle
+                tgl.Text = ""
+                addCorner(tgl, 22)
+                addStroke(tgl, self.Theme.Shadow, 1, 0.85)
+                tgl.Parent = holder
+
+                local dot = Instance.new("Frame")
+                dot.Size = UDim2.new(0, 18, 0, 18)
+                dot.Position = UDim2.new(default and 1 or 0, default and -20 or 2, 0.5, -9)
+                dot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                addCorner(dot, 18)
+                dot.Parent = tgl
+
+                local state = default
+                local function setState(v)
+                    state = v
+                    TweenService:Create(tgl, TweenInfo.new(0.15), {BackgroundColor3 = v and self.Theme.Accent or self.Theme.PageIdle}):Play()
+                    TweenService:Create(dot, TweenInfo.new(0.15), {Position = UDim2.new(v and 1 or 0, v and -20 or 2, 0.5, -9)}):Play()
+                    if callback then task.spawn(callback, state) end
                 end
-            }
+
+                tgl.MouseButton1Click:Connect(function() setState(not state) end)
+                return function(v) setState(v) end
+            end
+
+            -- Textbox
+            function Section:addTextbox(text, default, callback)
+                local holder = baseControl(34)
+                hoverColorize(holder, self.Theme.Primary, self.Theme.Hover)
+
+                local lbl = makeText(holder, tostring(text or "Textbox"), self.Theme, 16, true)
+                lbl.Size = UDim2.new(1, -180, 1, 0)
+                lbl.Position = UDim2.new(0, 10, 0, 0)
+                lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+                local tb = Instance.new("TextBox")
+                tb.Size = UDim2.new(0, 160, 0, 26)
+                tb.Position = UDim2.new(1, -170, 0.5, -13)
+                tb.BackgroundColor3 = self.Theme.PageIdle
+                tb.Text = tostring(default or "")
+                tb.TextColor3 = self.Theme.Text
+                tb.PlaceholderText = ""
+                tb.Font = Enum.Font.Arcade
+                tb.TextSize = 16
+                addCorner(tb, 6)
+                addStroke(tb, self.Theme.Shadow, 1, 0.85)
+                tb.Parent = holder
+
+                tb.FocusLost:Connect(function(enterPressed)
+                    if callback then task.spawn(callback, tb.Text) end
+                end)
+                return tb
+            end
+
+            -- Keybind
+            function Section:addKeybind(text, defaultKey, callback)
+                local holder = baseControl(34)
+                hoverColorize(holder, self.Theme.Primary, self.Theme.Hover)
+
+                local lbl = makeText(holder, tostring(text or "Keybind"), self.Theme, 16, true)
+                lbl.Size = UDim2.new(1, -180, 1, 0)
+                lbl.Position = UDim2.new(0, 10, 0, 0)
+                lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+                local btn = Instance.new("TextButton")
+                btn.Size = UDim2.new(0, 120, 0, 26)
+                btn.Position = UDim2.new(1, -130, 0.5, -13)
+                btn.BackgroundColor3 = self.Theme.PageIdle
+                btn.Text = defaultKey and defaultKey.Name or "None"
+                btn.TextColor3 = self.Theme.Text
+                btn.Font = Enum.Font.Arcade
+                btn.TextSize = 16
+                addCorner(btn, 6)
+                addStroke(btn, self.Theme.Shadow, 1, 0.85)
+                btn.Parent = holder
+
+                local capturing = false
+                local current = defaultKey
+
+                btn.MouseButton1Click:Connect(function()
+                    capturing = true
+                    btn.Text = "Press..."
+                    btn.BackgroundColor3 = self.Theme.PageHover
+                end)
+
+                UserInputService.InputBegan:Connect(function(input, gp)
+                    if gp then return end
+                    if capturing and input.UserInputType == Enum.UserInputType.Keyboard then
+                        capturing = false
+                        current = input.KeyCode
+                        btn.Text = current.Name
+                        btn.BackgroundColor3 = self.Theme.PageIdle
+                    elseif not capturing and current and input.KeyCode == current then
+                        if callback then task.spawn(callback, current) end
+                    end
+                end)
+
+                return function(newKey)
+                    current = newKey
+                    btn.Text = newKey and newKey.Name or "None"
+                end
+            end
+
+            -- Color Picker (simple hue bar)
+            function Section:addColorPicker(text, default, callback)
+                local holder = baseControl(48)
+                hoverColorize(holder, self.Theme.Primary, self.Theme.Hover)
+
+                local lbl = makeText(holder, tostring(text or "Color"), self.Theme, 16, true)
+                lbl.Size = UDim2.new(1, -180, 0, 20)
+                lbl.Position = UDim2.new(0, 10, 0, 4)
+                lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+                local preview = Instance.new("Frame")
+                preview.Size = UDim2.new(0, 26, 0, 26)
+                preview.Position = UDim2.new(1, -36, 0, 6)
+                preview.BackgroundColor3 = default or Color3.fromRGB(241, 196, 15)
+                addCorner(preview, 6)
+                addStroke(preview, self.Theme.Shadow, 1, 0.85)
+                preview.Parent = holder
+
+                local bar = Instance.new("Frame")
+                bar.Size = UDim2.new(1, -80, 0, 14)
+                bar.Position = UDim2.new(0, 10, 0, 26)
+                bar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                addCorner(bar, 6)
+                addStroke(bar, self.Theme.Shadow, 1, 0.85)
+                bar.Parent = holder
+
+                local uiGradient = Instance.new("UIGradient")
+                uiGradient.Color = ColorSequence.new{
+                    ColorSequenceKeypoint.new(0.00, Color3.fromHSV(0, 1, 1)),
+                    ColorSequenceKeypoint.new(0.17, Color3.fromHSV(0.17, 1, 1)),
+                    ColorSequenceKeypoint.new(0.33, Color3.fromHSV(0.33, 1, 1)),
+                    ColorSequenceKeypoint.new(0.50, Color3.fromHSV(0.50, 1, 1)),
+                    ColorSequenceKeypoint.new(0.67, Color3.fromHSV(0.67, 1, 1)),
+                    ColorSequenceKeypoint.new(0.83, Color3.fromHSV(0.83, 1, 1)),
+                    ColorSequenceKeypoint.new(1.00, Color3.fromHSV(1, 1, 1)),
+                }
+                uiGradient.Rotation = 0
+                uiGradient.Parent = bar
+
+                local knob = Instance.new("Frame")
+                knob.Size = UDim2.new(0, 6, 1, 0)
+                knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+                knob.Parent = bar
+
+                addCorner(knob, 3)
+
+                local hue = 0
+                local function setHueFromX(x)
+                    local rel = math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+                    hue = rel
+                    local c = Color3.fromHSV(hue, 1, 1)
+                    preview.BackgroundColor3 = c
+                    knob.Position = UDim2.new(rel, -3, 0, 0)
+                    if callback then task.spawn(callback, c) end
+                end
+
+                bar.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        setHueFromX(UserInputService:GetMouseLocation().X)
+                        local moveConn, upConn
+                        moveConn = UserInputService.InputChanged:Connect(function(i)
+                            if i.UserInputType == Enum.UserInputType.MouseMovement then
+                                setHueFromX(UserInputService:GetMouseLocation().X)
+                            end
+                        end)
+                        upConn = UserInputService.InputEnded:Connect(function(i)
+                            if i.UserInputType == Enum.UserInputType.MouseButton1 then
+                                if moveConn then moveConn:Disconnect() end
+                                if upConn then upConn:Disconnect() end
+                            end
+                        end)
+                    end
+                end)
+
+                if default then
+                    local h, s, v = default:ToHSV()
+                    hue = h
+                    preview.BackgroundColor3 = default
+                    knob.Position = UDim2.new(h, -3, 0, 0)
+                end
+
+                return function(c3)
+                    local h, s, v = c3:ToHSV()
+                    hue = h
+                    preview.BackgroundColor3 = c3
+                    knob.Position = UDim2.new(h, -3, 0, 0)
+                    if callback then task.spawn(callback, c3) end
+                end
+            end
+
+            -- Slider
+            function Section:addSlider(text, min, max, default, callback)
+                min = tonumber(min) or 0
+                max = tonumber(max) or 100
+                default = math.clamp(tonumber(default) or min, min, max)
+
+                local holder = baseControl(48)
+                hoverColorize(holder, self.Theme.Primary, self.Theme.Hover)
+
+                local lbl = makeText(holder, tostring(text or "Slider"), self.Theme, 16, true)
+                lbl.Size = UDim2.new(1, -80, 0, 20)
+                lbl.Position = UDim2.new(0, 10, 0, 4)
+                lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+                local valueLbl = makeText(holder, tostring(default), self.Theme, 14, true)
+                valueLbl.Size = UDim2.new(0, 80, 0, 20)
+                valueLbl.Position = UDim2.new(1, -80, 0, 4)
+                valueLbl.TextXAlignment = Enum.TextXAlignment.Right
+
+                local bar = Instance.new("Frame")
+                bar.Size = UDim2.new(1, -20, 0, 12)
+                bar.Position = UDim2.new(0, 10, 0, 28)
+                bar.BackgroundColor3 = self.Theme.PageIdle
+                addCorner(bar, 6)
+                addStroke(bar, self.Theme.Shadow, 1, 0.85)
+                bar.Parent = holder
+
+                local fill = Instance.new("Frame")
+                fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+                fill.BackgroundColor3 = self.Theme.Accent
+                addCorner(fill, 6)
+                fill.Parent = bar
+
+                local function setFromX(x)
+                    local rel = math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+                    local val = math.floor(min + (max - min) * rel + 0.5)
+                    valueLbl.Text = tostring(val)
+                    TweenService:Create(fill, TweenInfo.new(0.06), {Size = UDim2.new(rel, 0, 1, 0)}):Play()
+                    if callback then task.spawn(callback, val) end
+                end
+
+                bar.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        setFromX(UserInputService:GetMouseLocation().X)
+                        local moveConn, upConn
+                        moveConn = UserInputService.InputChanged:Connect(function(i)
+                            if i.UserInputType == Enum.UserInputType.MouseMovement then
+                                setFromX(UserInputService:GetMouseLocation().X)
+                            end
+                        end)
+                        upConn = UserInputService.InputEnded:Connect(function(i)
+                            if i.UserInputType == Enum.UserInputType.MouseButton1 then
+                                if moveConn then moveConn:Disconnect() end
+                                if upConn then upConn:Disconnect() end
+                            end
+                        end)
+                    end
+                end)
+
+                return function(val)
+                    val = math.clamp(tonumber(val) or default, min, max)
+                    local rel = (val - min) / (max - min)
+                    valueLbl.Text = tostring(val)
+                    fill.Size = UDim2.new(rel, 0, 1, 0)
+                    if callback then task.spawn(callback, val) end
+                end
+            end
+
+            -- Dropdown
+            function Section:addDropdown(text, options, default, callback)
+                options = options or {}
+                local holder = baseControl(34)
+                hoverColorize(holder, self.Theme.Primary, self.Theme.Hover)
+
+                local lbl = makeText(holder, tostring(text or "Dropdown"), self.Theme, 16, true)
+                lbl.Size = UDim2.new(1, -180, 1, 0)
+                lbl.Position = UDim2.new(0, 10, 0, 0)
+                lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+                local btn = Instance.new("TextButton")
+                btn.Size = UDim2.new(0, 160, 0, 26)
+                btn.Position = UDim2.new(1, -170, 0.5, -13)
+                btn.BackgroundColor3 = self.Theme.PageIdle
+                btn.Text = tostring(default or "Select")
+                btn.TextColor3 = self.Theme.Text
+                btn.Font = Enum.Font.Arcade
+                btn.TextSize = 16
+                btn.AutoButtonColor = false
+                addCorner(btn, 6)
+                addStroke(btn, self.Theme.Shadow, 1, 0.85)
+                btn.Parent = holder
+
+                local open = false
+                local listFrame = Instance.new("Frame")
+                listFrame.Visible = false
+                listFrame.Size = UDim2.new(0, 160, 0, 120)
+                listFrame.Position = UDim2.new(1, -170, 1, 6)
+                listFrame.BackgroundColor3 = self.Theme.Primary
+                addCorner(listFrame, 6)
+                addStroke(listFrame, self.Theme.Shadow, 1, 0.85)
+                listFrame.Parent = holder
+
+                local sf = Instance.new("ScrollingFrame")
+                sf.BackgroundTransparency = 1
+                sf.Size = UDim2.new(1, 0, 1, 0)
+                sf.CanvasSize = UDim2.new(0, 0, 0, 0)
+                sf.ScrollBarThickness = 6
+                sf.ScrollBarImageColor3 = self.Theme.Accent
+                sf.Parent = listFrame
+
+                local list = Instance.new("UIListLayout")
+                list.Padding = UDim.new(0, 4)
+                list.Parent = sf
+
+                list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                    sf.CanvasSize = UDim2.new(0, 0, 0, list.AbsoluteContentSize.Y + 6)
+                end)
+
+                local function setChoice(choice)
+                    btn.Text = tostring(choice)
+                    if callback then task.spawn(callback, choice) end
+                end
+
+                local function refreshOptions()
+                    for _, child in ipairs(sf:GetChildren()) do
+                        if child:IsA("TextButton") then child:Destroy() end
+                    end
+                    for _, opt in ipairs(options) do
+                        local o = Instance.new("TextButton")
+                        o.Size = UDim2.new(1, -8, 0, 26)
+                        o.Position = UDim2.new(0, 4, 0, 0)
+                        o.BackgroundColor3 = self.Theme.PageIdle
+                        o.Text = tostring(opt)
+                        o.TextColor3 = self.Theme.Text
+                        o.Font = Enum.Font.Arcade
+                        o.TextSize = 16
+                        o.AutoButtonColor = false
+                        addCorner(o, 6)
+                        addStroke(o, self.Theme.Shadow, 1, 0.85)
+                        o.Parent = sf
+                        hoverColorize(o, self.Theme.PageIdle, self.Theme.PageHover)
+                        o.MouseButton1Click:Connect(function()
+                            setChoice(opt)
+                            open = false
+                            listFrame.Visible = false
+                        end)
+                    end
+                end
+
+                refreshOptions()
+                if default then setChoice(default) end
+
+                btn.MouseButton1Click:Connect(function()
+                    open = not open
+                    listFrame.Visible = open
+                end)
+
+                return {
+                    Set = setChoice,
+                    SetOptions = function(newOptions)
+                        options = newOptions or {}
+                        refreshOptions()
+                    end
+                }
+            end
+
+            Page._sections[#Page._sections+1] = Section
+            return Section
         end
 
-        function section:Resize(size)
-            frame.Size = size
+        self._pages[name] = Page
+        self._pageButtons[name] = pageButton
+
+        return Page
+    end
+
+    -- API: addSelectPage
+    function self.addSelectPage(name)
+        for pname, page in pairs(self._pages) do
+            local active = (pname == name)
+            if page and page._frame then
+                if active then
+                    -- Slide-in effect
+                    page._frame.Visible = true
+                    page._frame.Position = UDim2.new(0, 20, 0, 0)
+                    TweenService:Create(page._frame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)}):Play()
+                else
+                    page._frame.Visible = false
+                end
+            end
+            if self._pageButtons[pname] then
+                self._pageButtons[pname].BackgroundColor3 = active and self.Theme.Accent or self.Theme.PageIdle
+                self._pageButtons[pname].TextColor3 = active and Color3.fromRGB(0, 0, 0) or self.Theme.Text
+            end
         end
-
-        table.insert(pageObj.Sections, section)
-        autoResizeSection()
-        return section
+        self._selected = name
     end
 
-    function pageObj.addResize(size)
-        pageContainer.Size = size
-    end
+    -- Initial open anim
+    task.delay(0.05, function()
+        self._visible = true
+        self.SetTheme("Dark Yellow Premium")
+        TweenService:Create(self._uiScale, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 1}):Play()
+        self._blur.Enabled = true
+        TweenService:Create(self._blur, TweenInfo.new(0.25), {Size = 18}):Play()
+    end)
 
-    _state.Pages[name] = pageObj
-    table.insert(_state.PageOrder, name)
-    return pageObj
+    return self
 end
 
--- UI.addSelectPage
-function UI.addSelectPage(name)
-    local page = _state.Pages[name]
-    if not page then return end
-    for n, p in pairs(_state.Pages) do
-        p.Container.Visible = false
-        if p.Button then
-            tween(p.Button, TweenInfo.new(0.12), { TextColor3 = _state.Theme.Text }):Play()
-        end
-    end
-    page.Container.Visible = true
-    tween(page.Button, TweenInfo.new(0.12), { TextColor3 = _state.Theme.Accent }):Play()
-    _state.CurrentPage = name
-    slideInSections(page.Container)
-end
-
--- Close on RightControl default (optional usability)
-UserInputService.InputBegan:Connect(function(input, gpe)
-    if gpe then return end
-    if input.KeyCode == Enum.KeyCode.RightControl then
-        UI.Toggle()
-    end
-end)
-
--- Return library
-return UI
+return UIlib

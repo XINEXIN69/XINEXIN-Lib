@@ -232,7 +232,7 @@ function UIlib.new(title)
     pageList.Padding = UDim.new(0, 6)
     pageList.SortOrder = Enum.SortOrder.LayoutOrder
     pageList.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    pageList.VerticalAlignment = Enum.VerticalAlignment.Begin
+    pageList.VerticalAlignment = Enum.VerticalAlignment.Top
     pageList.Parent = pagebar
 
     local pagePad = Instance.new("UIPadding")

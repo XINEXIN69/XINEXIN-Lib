@@ -1,50 +1,4 @@
---[[
-  XINEXIN HUB - Minimal / Flat UI Library for Delta Executor
-  Theme: Dark Yellow Premium
-  Font: Pixel Bold (Enum.Font.Arcade approximates pixel-bold)
-  Text Color: White
-  Window Size: UDim2.new(0, 763, 0, 465)
-  Window Position: UDim2.new(0.5, 0, 0.49939, 0)
-  Git-ready single file.
 
-  API:
-    local UI = XINEXIN.new({
-        Theme = "Dark Yellow Premium",
-        Font = "Pixel Bold",
-        TextColor = Color3.fromRGB(255, 255, 255),
-        Size = UDim2.new(0, 763, 0, 465),
-        Position = UDim2.new(0.5, 0, 0.49939, 0),
-        HubName = "XINEXIN HUB"
-    })
-
-    -- UI Level
-    UI.addPage(name) -> Page
-    UI.addNotify(message)
-    UI.addSelectPage(name)
-    UI.SetTheme(theme)
-    UI.Toggle()
-
-    -- Page Level
-    Page.addSection(name) -> Section
-    Page.addResize(size: UDim2)
-
-    -- Section Level
-    Section:addButton(name, callback)
-    Section:addToggle(name, default, callback)
-    Section:addTextbox(name, default, callback)
-    Section:addKeybind(name, default, callback)
-    Section:addColorPicker(name, default, callback) -- simple palette
-    Section:addSlider(name, min, max, default, callback)
-    Section:addDropdown(name, options: {string}, default, callback)
-    Section:Resize(size: UDim2)
-
-  Notes:
-    - Blur + Zoom happen on UI open via UI.Toggle()
-    - Pages have hover bounce + color change
-    - Sections slide in when page is selected
-    - Window draggable via top bar
-    - Toggle icon (floating, draggable) to show/hide UI
-]]
 
 local XINEXIN = {}
 
@@ -1013,4 +967,4 @@ function XINEXIN.new(cfg)
 end
 
 -- Return module table for loadstring(...)() use
-return XINEXIN
+return library

@@ -1,3 +1,26 @@
+--!strict
+-- XINEXIN HUB - Minimal / Flat UI Library for Delta Executor
+-- Theme: Dark Yellow, Pixel Bold, White text
+-- Window: Size UDim2.new(0, 735, 0, 379), Position UDim2.new(0.26607, 0, 0.26773, 0)
+-- API:
+--  UI.addPage(name) -> Page
+--  UI.addNotify(message)
+--  UI.addSelectPage(name)
+--  UI.SetTheme(themeTable | "DarkYellow")
+--  UI.Toggle()
+-- Page:
+--  Page.addSection(name) -> Section
+--  Page.addResize(sizeUDim2)
+-- Section:
+--  Section:addButton(name, callback)
+--  Section:addToggle(name, default, callback)
+--  Section:addTextbox(name, default, callback)
+--  Section:addKeybind(name, defaultKeyCode, callback)
+--  Section:addColorPicker(name, defaultColor3, callback)
+--  Section:addSlider(name, min, max, default, callback)
+--  Section:addDropdown(name, optionsArray, default, callback)
+--  Section:Resize(sizeUDim2)
+
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -287,47 +310,48 @@ function Library.new(config: {Name: string}?)
     end))
 
     -- Selection helpers
-      local function setSelectedPage(name)
-    -- แสดงเฉพาะ Page ที่เลือก
-    for pName, frame in pairs(Pages) do
-        frame.Visible = (pName == name)
-    end
-
-    -- อัปเดตสีปุ่ม Page
-    for bName, btn in pairs(PageButtons) do
-        if bName == name then
-            tween(btn, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
-                BackgroundColor3 = Theme.Accent,
-                TextColor3 = Theme.Background
-            })
-        else
-            tween(btn, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
-                BackgroundColor3 = Theme.Element,
-                TextColor3 = Theme.Text
-            })
+    local function setSelectedPage(name: string)
+        for pName, frame in pairs(Pages) do
+            frame.Visible = (pName == name)
         end
-    end
+        for bName, btn in pairs(PageButtons) do
+            if bName == name then
+                tween(btn, 0.12, nil, nil, {BackgroundColor3 = Theme.Accent, TextColor3 = Theme.Background})
+            else
+                tween(btn, 0.12, nil, nil, {BackgroundColor3 = Theme.Element, TextColor3 = Theme.Text})
+            end
+        end
+        SelectedPageName = name
 
-    SelectedPageName = name
-
-    -- Slide-in เฉพาะ Content ของ Section
-    local secs = SectionsByPage[name]
-    if secs then
-        for i, sec in ipairs(secs) do
-            local content = sec:FindFirstChild("Content")
-            if content and content:IsA("Frame") then
-                content.Position = UDim2.new(0, 8, 0, 0)
-                task.delay(0.02 * (i - 1), function()
-                    if content and content.Parent then
-                        tween(content, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
-                            Position = UDim2.new(0, 0, 0, 0)
-                        })
+        -- Section slide-in animation
+        local secs = SectionsByPage[name]
+        if secs then
+            for i, sec in ipairs(secs) do
+                local content = sec:FindFirstChild("Content")
+                if content and content:IsA("Frame") then
+                    content.Position = UDim2.new(0, 8, 0, 0)
+                    content.BackgroundTransparency = content.BackgroundTransparency -- keep
+                    for _, child in ipairs(content:GetDescendants()) do
+                        if child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("TextBox") then
+                            child.TextTransparency = 1
+                        elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then
+                            child.ImageTransparency = 1
+                        end
                     end
-                end)
+                    task.delay(0.02 * (i - 1), function()
+                        tween(content, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {Position = UDim2.new(0, 0, 0, 0)})
+                        for _, child in ipairs(content:GetDescendants()) do
+                            if child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("TextBox") then
+                                tween(child, 0.25, nil, nil, {TextTransparency = 0})
+                            elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then
+                                tween(child, 0.25, nil, nil, {ImageTransparency = 0})
+                            end
+                        end
+                    end)
+                end
             end
         end
     end
-end
 
     -- Page factory
     local function createPage(name: string)
@@ -398,49 +422,33 @@ end
 
         local PageAPI = {}
 
-            function PageAPI:addSection(secName)
-    local Section = new("Frame", {
-        Name = "Section_" .. tostring(secName),
-        BackgroundColor3 = Theme.Secondary,
-        Size = UDim2.new(1, 0, 0, 80),
-        ClipsDescendants = false, -- กัน Header โดนตัด
-        Parent = self.PageFrame
-    })
-    addCorner(Section, 8)
-    new("UIStroke", {
-        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-        Color = Theme.Stroke,
-        Thickness = 1
-    }, Section)
+        function PageAPI.addSection(secName: string)
+            local Section = new("Frame", {
+                Name = "Section_" .. secName,
+                BackgroundColor3 = Theme.Secondary,
+                Size = UDim2.new(1, 0, 0, 80),
+            }, PageFrame)
+            addCorner(Section, 8)
+            new("UIStroke", {ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = Theme.Stroke, Thickness = 1}, Section)
 
-    -- Header แยกออกมา
-    local Header = new("TextLabel", {
-        Name = "Header",
-        BackgroundTransparency = 1,
-        Text = tostring(secName),
-        Font = PIXEL_FONT,
-        TextSize = 16,
-        TextColor3 = Theme.SubText,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Position = UDim2.new(0, 10, 0, 6),
-        Size = UDim2.new(1, -20, 0, 18),
-        Parent = Section
-    })
+            local Header = new("TextLabel", {
+                Name = "Header",
+                BackgroundTransparency = 1,
+                Text = secName,
+                Font = PIXEL_FONT,
+                TextSize = 16,
+                TextColor3 = Theme.SubText,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Position = UDim2.new(0, 10, 0, 6),
+                Size = UDim2.new(1, -20, 0, 18),
+            }, Section)
 
-    -- Content อยู่ใต้ Header
-    local Content = new("Frame", {
-        Name = "Content",
-        BackgroundTransparency = 1,
-        Position = UDim2.new(0, 10, 0, 28),
-        Size = UDim2.new(1, -20, 1, -38),
-        Parent = Section
-    })
-
-    SectionsByPage[self.PageName] = SectionsByPage[self.PageName] or {}
-    table.insert(SectionsByPage[self.PageName], Section)
-
-    return setmetatable({Section = Section, Content = Content}, {__index = SectionAPI})
-end
+            local Content = new("Frame", {
+                Name = "Content",
+                BackgroundTransparency = 1,
+                Position = UDim2.new(0, 10, 0, 28),
+                Size = UDim2.new(1, -20, 1, -38),
+            }, Section)
 
             local Layout = new("UIListLayout", {
                 FillDirection = Enum.FillDirection.Vertical,
@@ -872,105 +880,89 @@ end
                 }
             end
 
-            function SectionAPI:addDropdown(ddName, options, default, callback)
-            local Row = makeRowBase(34)
-            label(Row, ddName)
-        
-            local Current = default or (options and options[1]) or ""
-            local Btn = new("TextButton", {
-                BackgroundColor3 = Theme.Background,
-                AutoButtonColor = false,
-                Text = Current,
-                Font = PIXEL_FONT,
-                TextSize = 14,
-                TextColor3 = Theme.Text,
-                Size = UDim2.new(0, 200, 0, 26),
-                Position = UDim2.new(1, -210, 0.5, -13),
-                ZIndex = 50,
-                Parent = Row
-            })
-            addCorner(Btn, 6)
-            new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Btn)
-        
-            -- Popup แยกออกมาอยู่ใน ScreenGui
-            local Popup = new("Frame", {
-                Visible = false,
-                BackgroundColor3 = Theme.Secondary,
-                Size = UDim2.new(0, 200, 0, 6 + (#options * 28)),
-                ClipsDescendants = false,
-                ZIndex = 100,
-                Parent = Screen
-            })
-            addCorner(Popup, 6)
-            new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Popup)
-        
-            local OptList = new("UIListLayout", {
-                Padding = UDim.new(0, 2),
-                SortOrder = Enum.SortOrder.LayoutOrder,
-                Parent = Popup
-            })
-            new("UIPadding", {
-                PaddingTop = UDim.new(0, 6),
-                PaddingLeft = UDim.new(0, 6),
-                PaddingRight = UDim.new(0, 6),
-                PaddingBottom = UDim.new(0, 6),
-                Parent = Popup
-            })
-        
-            local function choose(opt)
-                Current = opt
-                Btn.Text = opt
-                Popup.Visible = false
-                if callback then task.spawn(callback, opt) end
-            end
-        
-            for _, opt in ipairs(options or {}) do
-                local Opt = new("TextButton", {
-                    BackgroundColor3 = Theme.Element,
+            function SectionAPI:addDropdown(ddName: string, options: {string}, default: string?, callback: ((opt: string) -> ())?)
+                local Row = makeRowBase(34)
+                label(Row, ddName)
+            
+                local Current = default or (options and options[1]) or ""
+                local Btn = new("TextButton", {
+                    BackgroundColor3 = Theme.Background,
                     AutoButtonColor = false,
-                    Text = opt,
+                    Text = Current,
                     Font = PIXEL_FONT,
                     TextSize = 14,
                     TextColor3 = Theme.Text,
-                    Size = UDim2.new(1, 0, 0, 24),
-                    ZIndex = 101,
-                    Parent = Popup
+                    Size = UDim2.new(0, 200, 0, 26),
+                    Position = UDim2.new(1, -210, 0.5, -13),
+                    ZIndex = 50,
+                }, Row)
+                addCorner(Btn, 6)
+                new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Btn)
+            
+                -- ✅ ย้าย Popup ไปอยู่ใน ScreenGui เพื่อไม่โดน Clip
+                local Popup = new("Frame", {
+                    Visible = false,
+                    BackgroundColor3 = Theme.Secondary,
+                    Size = UDim2.new(0, 200, 0, 6 + (#options * 28)),
+                    ClipsDescendants = false,
+                    ZIndex = 100,
+                    Parent = Screen, -- อยู่บนสุด
                 })
-                addCorner(Opt, 4)
-                Opt.MouseEnter:Connect(function()
-                    tween(Opt, 0.08, nil, nil, {BackgroundColor3 = Theme.ElementHover})
-                end)
-                Opt.MouseLeave:Connect(function()
-                    tween(Opt, 0.12, nil, nil, {BackgroundColor3 = Theme.Element})
-                end)
-                Opt.MouseButton1Click:Connect(function() choose(opt) end)
-            end
-        
-            -- ฟังก์ชันอัปเดตตำแหน่ง Popup ให้ตรงกับปุ่ม
-            local function updatePopupPos()
-                local absPos = Btn.AbsolutePosition
-                local absSize = Btn.AbsoluteSize
-                Popup.Position = UDim2.fromOffset(absPos.X, absPos.Y + absSize.Y)
-            end
-        
-            -- อัปเดตตำแหน่งทุกเฟรมเมื่อ Popup เปิด
-            RunService.RenderStepped:Connect(function()
-                if Popup.Visible then
-                    updatePopupPos()
+                addCorner(Popup, 6)
+                new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Popup)
+            
+                local OptList = new("UIListLayout", {
+                    Padding = UDim.new(0, 2),
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                }, Popup)
+                new("UIPadding", {
+                    PaddingTop = UDim.new(0, 6),
+                    PaddingLeft = UDim.new(0, 6),
+                    PaddingRight = UDim.new(0, 6),
+                    PaddingBottom = UDim.new(0, 6),
+                }, Popup)
+            
+                local function choose(opt: string)
+                    Current = opt
+                    Btn.Text = opt
+                    Popup.Visible = false
+                    if callback then task.spawn(callback, opt) end
                 end
-            end)
-        
-            Btn.MouseButton1Click:Connect(function()
-                updatePopupPos()
-                Popup.Visible = not Popup.Visible
-            end)
-        
-            return {
-                Set = function(opt) choose(opt) end,
-                Get = function() return Current end
-            }
-        end
-
+            
+                for _, opt in ipairs(options or {}) do
+                    local Opt = new("TextButton", {
+                        BackgroundColor3 = Theme.Element,
+                        AutoButtonColor = false,
+                        Text = opt,
+                        Font = PIXEL_FONT,
+                        TextSize = 14,
+                        TextColor3 = Theme.Text,
+                        Size = UDim2.new(1, 0, 0, 24),
+                        ZIndex = 101,
+                    }, Popup)
+                    addCorner(Opt, 4)
+                    Opt.MouseEnter:Connect(function()
+                        tween(Opt, 0.08, nil, nil, {BackgroundColor3 = Theme.ElementHover})
+                    end)
+                    Opt.MouseLeave:Connect(function()
+                        tween(Opt, 0.12, nil, nil, {BackgroundColor3 = Theme.Element})
+                    end)
+                    Opt.MouseButton1Click:Connect(function() choose(opt) end)
+                end
+            
+                Btn.MouseButton1Click:Connect(function()
+                    -- คำนวณตำแหน่ง Popup ให้ตรงกับปุ่ม
+                    local absPos = Btn.AbsolutePosition
+                    local absSize = Btn.AbsoluteSize
+                    Popup.Position = UDim2.fromOffset(absPos.X, absPos.Y + absSize.Y)
+                    Popup.Visible = not Popup.Visible
+                end)
+            
+                return {
+                    Set = function(opt: string) choose(opt) end,
+                    Get = function() return Current end
+                }
+            end
             function SectionAPI:Resize(size: UDim2)
                 Section.Size = size
             end

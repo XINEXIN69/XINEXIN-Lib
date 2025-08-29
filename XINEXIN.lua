@@ -309,32 +309,49 @@ function Library.new(config: {Name: string}?)
         end
     end))
 
-    -- Section slide-in animation (Header ไม่ถูกเลื่อน)
-local secs = SectionsByPage[name]
-if secs then
-    for i, sec in ipairs(secs) do
-        local content = sec:FindFirstChild("Content")
-        local header = sec:FindFirstChild("Header")
-        
-        if content and content:IsA("Frame") then
-            -- เริ่มเลื่อนจาก offset เล็กน้อย
-            content.Position = UDim2.new(0, 8, 0, 0)
-
-            -- Slide-in เฉพาะ Content
-            task.delay(0.02 * (i - 1), function()
-                tween(content, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
-                    Position = UDim2.new(0, 0, 0, 0)
-                })
-            end)
+    -- Selection helpers
+    local function setSelectedPage(name: string)
+        for pName, frame in pairs(Pages) do
+            frame.Visible = (pName == name)
         end
+        for bName, btn in pairs(PageButtons) do
+            if bName == name then
+                tween(btn, 0.12, nil, nil, {BackgroundColor3 = Theme.Accent, TextColor3 = Theme.Background})
+            else
+                tween(btn, 0.12, nil, nil, {BackgroundColor3 = Theme.Element, TextColor3 = Theme.Text})
+            end
+        end
+        SelectedPageName = name
 
-        -- Header อยู่คงที่
-        if header and header:IsA("TextLabel") then
-            header.Position = header.Position  -- ไม่เปลี่ยนอะไร
+        -- Section slide-in animation
+        local secs = SectionsByPage[name]
+        if secs then
+            for i, sec in ipairs(secs) do
+                local content = sec:FindFirstChild("Content")
+                if content and content:IsA("Frame") then
+                    content.Position = UDim2.new(0, 8, 0, 0)
+                    content.BackgroundTransparency = content.BackgroundTransparency -- keep
+                    for _, child in ipairs(content:GetDescendants()) do
+                        if child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("TextBox") then
+                            child.TextTransparency = 1
+                        elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then
+                            child.ImageTransparency = 1
+                        end
+                    end
+                    task.delay(0.02 * (i - 1), function()
+                        tween(content, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {Position = UDim2.new(0, 0, 0, 0)})
+                        for _, child in ipairs(content:GetDescendants()) do
+                            if child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("TextBox") then
+                                tween(child, 0.25, nil, nil, {TextTransparency = 0})
+                            elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then
+                                tween(child, 0.25, nil, nil, {ImageTransparency = 0})
+                            end
+                        end
+                    end)
+                end
+            end
         end
     end
-end
-
 
     -- Page factory
     local function createPage(name: string)
@@ -405,15 +422,18 @@ end
 
         local PageAPI = {}
 
-        function PageAPI.addSection(secName: string)
+              function PageAPI:addSection(secName)
             local Section = new("Frame", {
                 Name = "Section_" .. secName,
                 BackgroundColor3 = Theme.Secondary,
                 Size = UDim2.new(1, 0, 0, 80),
-            }, PageFrame)
+                ClipsDescendants = false, -- กันตัด Header
+                Parent = self.PageFrame
+            })
             addCorner(Section, 8)
             new("UIStroke", {ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = Theme.Stroke, Thickness = 1}, Section)
-
+        
+            -- Header แยกออกมา
             local Header = new("TextLabel", {
                 Name = "Header",
                 BackgroundTransparency = 1,
@@ -424,14 +444,23 @@ end
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Position = UDim2.new(0, 10, 0, 6),
                 Size = UDim2.new(1, -20, 0, 18),
-            }, Section)
-
+                Parent = Section
+            })
+        
+            -- Content อยู่ใต้ Header
             local Content = new("Frame", {
                 Name = "Content",
                 BackgroundTransparency = 1,
                 Position = UDim2.new(0, 10, 0, 28),
                 Size = UDim2.new(1, -20, 1, -38),
-            }, Section)
+                Parent = Section
+            })
+        
+            SectionsByPage[self.PageName] = SectionsByPage[self.PageName] or {}
+            table.insert(SectionsByPage[self.PageName], Section)
+        
+            return setmetatable({Section = Section, Content = Content}, {__index = SectionAPI})
+        end
 
             local Layout = new("UIListLayout", {
                 FillDirection = Enum.FillDirection.Vertical,
@@ -877,7 +906,7 @@ end
                 TextColor3 = Theme.Text,
                 Size = UDim2.new(0, 200, 0, 26),
                 Position = UDim2.new(1, -210, 0.5, -13),
-                ZIndex = 50, -- ปุ่มอยู่บน
+                ZIndex = 50,
             }, Row)
             addCorner(Btn, 6)
             new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Btn)
@@ -888,10 +917,9 @@ end
                 BackgroundColor3 = Theme.Secondary,
                 Size = UDim2.new(0, 200, 0, 6 + (#options * 28)),
                 ClipsDescendants = false,
-                ZIndex = 100, -- อยู่บนสุด
-                Parent = Screen, -- อยู่บนสุดของ UI
+                ZIndex = 100,
+                Parent = Screen, -- อยู่บนสุด
             })
-        
             addCorner(Popup, 6)
             new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Popup)
         
@@ -922,7 +950,7 @@ end
                     TextSize = 14,
                     TextColor3 = Theme.Text,
                     Size = UDim2.new(1, 0, 0, 24),
-                    ZIndex = 101, -- สูงกว่า Popup
+                    ZIndex = 101,
                 }, Popup)
                 addCorner(Opt, 4)
                 Opt.MouseEnter:Connect(function()
@@ -947,8 +975,6 @@ end
                 Get = function() return Current end
             }
         end
-
-
             function SectionAPI:Resize(size: UDim2)
                 Section.Size = size
             end
@@ -1055,7 +1081,6 @@ end
         end
     end)
 end
-
     function UI.addSelectPage(name: string)
         if not Pages[name] then return end
         setSelectedPage(name)

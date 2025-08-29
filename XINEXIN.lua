@@ -858,91 +858,88 @@ function Library.new(config: {Name: string}?)
             end
 
                 function SectionAPI:addDropdown(ddName: string, options: {string}, default: string?, callback: ((opt: string) -> ())?)
-        local Row = makeRowBase(34)
-        label(Row, ddName)
-    
-        local Current = default or (options and options[1]) or ""
-        local Btn = new("TextButton", {
-            BackgroundColor3 = Theme.Background,
+    local Row = makeRowBase(34)
+    label(Row, ddName)
+
+    local Current = default or (options and options[1]) or ""
+    local Btn = new("TextButton", {
+        BackgroundColor3 = Theme.Background,
+        AutoButtonColor = false,
+        Text = Current,
+        Font = PIXEL_FONT,
+        TextSize = 14,
+        TextColor3 = Theme.Text,
+        Size = UDim2.new(0, 200, 0, 26),
+        Position = UDim2.new(1, -210, 0.5, -13),
+        ZIndex = 50,
+    }, Row)
+    addCorner(Btn, 6)
+    new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Btn)
+
+    -- ✅ ย้าย Popup ไปอยู่ใน ScreenGui เพื่อไม่โดน Clip
+    local Popup = new("Frame", {
+        Visible = false,
+        BackgroundColor3 = Theme.Secondary,
+        Size = UDim2.new(0, 200, 0, 6 + (#options * 28)),
+        ClipsDescendants = false,
+        ZIndex = 100,
+        Parent = Screen, -- อยู่บนสุด
+    })
+    addCorner(Popup, 6)
+    new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Popup)
+
+    local OptList = new("UIListLayout", {
+        Padding = UDim.new(0, 2),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    }, Popup)
+    new("UIPadding", {
+        PaddingTop = UDim.new(0, 6),
+        PaddingLeft = UDim.new(0, 6),
+        PaddingRight = UDim.new(0, 6),
+        PaddingBottom = UDim.new(0, 6),
+    }, Popup)
+
+    local function choose(opt: string)
+        Current = opt
+        Btn.Text = opt
+        Popup.Visible = false
+        if callback then task.spawn(callback, opt) end
+    end
+
+    for _, opt in ipairs(options or {}) do
+        local Opt = new("TextButton", {
+            BackgroundColor3 = Theme.Element,
             AutoButtonColor = false,
-            Text = Current,
+            Text = opt,
             Font = PIXEL_FONT,
             TextSize = 14,
             TextColor3 = Theme.Text,
-            Size = UDim2.new(0, 200, 0, 26),
-            Position = UDim2.new(1, -210, 0.5, -13),
-            ZIndex = 50, -- ปุ่มอยู่บน
-        }, Row)
-        addCorner(Btn, 6)
-        new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Btn)
-    
-        -- ✅ ย้าย Popup ไปอยู่ใน ScreenGui เพื่อไม่โดน Clip
-        local Popup = new("Frame", {
-            Visible = false,
-            BackgroundColor3 = Theme.Secondary,
-            Size = UDim2.new(0, 200, 0, 6 + (#options * 28)),
-            ClipsDescendants = false,
-            ZIndex = 100, -- อยู่บนสุด
-            Parent = Screen, -- อยู่บนสุดของ UI
-        })
-    
-        addCorner(Popup, 6)
-        new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Popup)
-    
-        local OptList = new("UIListLayout", {
-            Padding = UDim.new(0, 2),
-            SortOrder = Enum.SortOrder.LayoutOrder,
+            Size = UDim2.new(1, 0, 0, 24),
+            ZIndex = 101,
         }, Popup)
-        new("UIPadding", {
-            PaddingTop = UDim.new(0, 6),
-            PaddingLeft = UDim.new(0, 6),
-            PaddingRight = UDim.new(0, 6),
-            PaddingBottom = UDim.new(0, 6),
-        }, Popup)
-    
-        local function choose(opt: string)
-            Current = opt
-            Btn.Text = opt
-            Popup.Visible = false
-            if callback then task.spawn(callback, opt) end
-        end
-    
-        for _, opt in ipairs(options or {}) do
-            local Opt = new("TextButton", {
-                BackgroundColor3 = Theme.Element,
-                AutoButtonColor = false,
-                Text = opt,
-                Font = PIXEL_FONT,
-                TextSize = 14,
-                TextColor3 = Theme.Text,
-                Size = UDim2.new(1, 0, 0, 24),
-                ZIndex = 101, -- สูงกว่า Popup
-            }, Popup)
-            addCorner(Opt, 4)
-            Opt.MouseEnter:Connect(function()
-                tween(Opt, 0.08, nil, nil, {BackgroundColor3 = Theme.ElementHover})
-            end)
-            Opt.MouseLeave:Connect(function()
-                tween(Opt, 0.12, nil, nil, {BackgroundColor3 = Theme.Element})
-            end)
-            Opt.MouseButton1Click:Connect(function() choose(opt) end)
-        end
-    
-        Btn.MouseButton1Click:Connect(function()
-            -- คำนวณตำแหน่ง Popup ให้ตรงกับปุ่ม
-            local absPos = Btn.AbsolutePosition
-            local absSize = Btn.AbsoluteSize
-            Popup.Position = UDim2.fromOffset(absPos.X, absPos.Y + absSize.Y)
-            Popup.Visible = not Popup.Visible
+        addCorner(Opt, 4)
+        Opt.MouseEnter:Connect(function()
+            tween(Opt, 0.08, nil, nil, {BackgroundColor3 = Theme.ElementHover})
         end)
-    
-        return {
-            Set = function(opt: string) choose(opt) end,
-            Get = function() return Current end
-        }
+        Opt.MouseLeave:Connect(function()
+            tween(Opt, 0.12, nil, nil, {BackgroundColor3 = Theme.Element})
+        end)
+        Opt.MouseButton1Click:Connect(function() choose(opt) end)
     end
 
+    Btn.MouseButton1Click:Connect(function()
+        -- คำนวณตำแหน่ง Popup ให้ตรงกับปุ่ม
+        local absPos = Btn.AbsolutePosition
+        local absSize = Btn.AbsoluteSize
+        Popup.Position = UDim2.fromOffset(absPos.X, absPos.Y + absSize.Y)
+        Popup.Visible = not Popup.Visible
+    end)
 
+    return {
+        Set = function(opt: string) choose(opt) end,
+        Get = function() return Current end
+    }
+end
             function SectionAPI:Resize(size: UDim2)
                 Section.Size = size
             end

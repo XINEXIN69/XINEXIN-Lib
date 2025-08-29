@@ -876,15 +876,15 @@ function Library.new(config: {Name: string}?)
     addCorner(Btn, 6)
     new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Btn)
 
-    -- ✅ ย้าย Popup ไปอยู่ใน ScreenGui เพื่อไม่โดน Clip
+    -- Popup อยู่ใน ScreenGui
     local Popup = new("Frame", {
-    Visible = false,
-    BackgroundColor3 = Theme.Secondary,
-    Size = UDim2.new(0, 200, 0, 6 + (#options * 28)),
-    Position = UDim2.new(0, Btn.Position.X.Offset, 0, Btn.Position.Y.Offset + Btn.Size.Y.Offset),
-    ZIndex = 100,
-    Parent = Row, -- ✅ อยู่ใน Row เดิม
-})
+        Visible = false,
+        BackgroundColor3 = Theme.Secondary,
+        Size = UDim2.new(0, 200, 0, 6 + (#options * 28)),
+        ClipsDescendants = false,
+        ZIndex = 100,
+        Parent = Screen,
+    })
     addCorner(Popup, 6)
     new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Popup)
 
@@ -927,11 +927,22 @@ function Library.new(config: {Name: string}?)
         Opt.MouseButton1Click:Connect(function() choose(opt) end)
     end
 
-    Btn.MouseButton1Click:Connect(function()
-        -- คำนวณตำแหน่ง Popup ให้ตรงกับปุ่ม
+    -- ฟังก์ชันอัปเดตตำแหน่ง Popup ให้ตรงกับปุ่ม
+    local function updatePopupPos()
         local absPos = Btn.AbsolutePosition
         local absSize = Btn.AbsoluteSize
         Popup.Position = UDim2.fromOffset(absPos.X, absPos.Y + absSize.Y)
+    end
+
+    -- อัปเดตตำแหน่งทุกเฟรมเมื่อ Popup เปิด
+    RunService.RenderStepped:Connect(function()
+        if Popup.Visible then
+            updatePopupPos()
+        end
+    end)
+
+    Btn.MouseButton1Click:Connect(function()
+        updatePopupPos()
         Popup.Visible = not Popup.Visible
     end)
 

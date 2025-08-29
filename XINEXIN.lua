@@ -992,33 +992,61 @@ function Library.new(config: {Name: string}?)
         return page
     end
 
-    function UI.addNotify(message: string)
-        local Toast = new("Frame", {
-            BackgroundColor3 = Theme.Secondary,
-            Size = UDim2.new(0, 0, 0, 34),
-            BackgroundTransparency = 0,
-        }, Toasts)
-        addCorner(Toast, 8)
-        new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Toast)
-        local Label = new("TextLabel", {
-            BackgroundTransparency = 1,
-            Font = PIXEL_FONT,
-            Text = message,
-            TextColor3 = Theme.Text,
-            TextSize = 14,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Size = UDim2.new(1, -16, 1, 0),
-            Position = UDim2.new(0, 8, 0, 0),
-        }, Toast)
-        Toast.Size = UDim2.new(0, 12, 0, 34)
-        tween(Toast, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {Size = UDim2.new(0, math.clamp(Label.TextBounds.X + 24, 140, 300), 0, 34)})
-        task.delay(2.2, function()
-            tween(Toast, 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In, {BackgroundTransparency = 1})
-            tween(Label, 0.12, nil, nil, {TextTransparency = 1}).Completed:Wait()
-            Toast:Destroy()
-        end)
+    function UI.addNotify(message: string, duration: number?)
+    duration = duration or 3
+
+    -- Container สำหรับ Toast ทั้งหมด
+    local ToastContainer = Screen:FindFirstChild("ToastContainer")
+    if not ToastContainer then
+        ToastContainer = Instance.new("Frame")
+        ToastContainer.Name = "ToastContainer"
+        ToastContainer.AnchorPoint = Vector2.new(1, 0)
+        ToastContainer.Position = UDim2.new(1, -20, 0, 20)
+        ToastContainer.Size = UDim2.new(0, 300, 1, -40)
+        ToastContainer.BackgroundTransparency = 1
+        ToastContainer.Parent = Screen
+
+        local layout = Instance.new("UIListLayout")
+        layout.FillDirection = Enum.FillDirection.Vertical
+        layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+        layout.VerticalAlignment = Enum.VerticalAlignment.Top
+        layout.Padding = UDim.new(0, 8)
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
+        layout.Parent = ToastContainer
     end
 
+    -- ตัว Toast
+    local Toast = Instance.new("Frame")
+    Toast.Size = UDim2.new(0, 0, 0, 36)
+    Toast.BackgroundColor3 = Theme.Secondary
+    Toast.BackgroundTransparency = 0
+    Toast.BorderSizePixel = 0
+    Toast.ClipsDescendants = true
+    Toast.Parent = ToastContainer
+    addCorner(Toast, 8)
+    Instance.new("UIStroke", {Color = Theme.Stroke, Thickness = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = Toast})
+
+    local Label = Instance.new("TextLabel")
+    Label.BackgroundTransparency = 1
+    Label.Font = PIXEL_FONT
+    Label.Text = message
+    Label.TextColor3 = Theme.Text
+    Label.TextSize = 14
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Size = UDim2.new(1, -16, 1, 0)
+    Label.Position = UDim2.new(0, 8, 0, 0)
+    Label.Parent = Toast
+
+    -- Tween เข้ามาจากขวา
+    Toast.Size = UDim2.new(0, 0, 0, 36)
+    tween(Toast, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {Size = UDim2.new(0, math.clamp(Label.TextBounds.X + 24, 140, 300), 0, 36)})
+
+    -- รอแล้ว Tween ออก
+    task.delay(duration, function()
+        tween(Toast, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In, {Size = UDim2.new(0, 0, 0, 36)}).Completed:Wait()
+        Toast:Destroy()
+    end)
+end
     function UI.addSelectPage(name: string)
         if not Pages[name] then return end
         setSelectedPage(name)

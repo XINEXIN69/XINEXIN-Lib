@@ -342,36 +342,6 @@ function Library.new(config: {Name: string}?)
         end
     end
 end
-        -- Section slide-in animation
-        local secs = SectionsByPage[name]
-        if secs then
-            for i, sec in ipairs(secs) do
-                local content = sec:FindFirstChild("Content")
-                if content and content:IsA("Frame") then
-                    content.Position = UDim2.new(0, 8, 0, 0)
-                    content.BackgroundTransparency = content.BackgroundTransparency -- keep
-                    for _, child in ipairs(content:GetDescendants()) do
-                        if child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("TextBox") then
-                            child.TextTransparency = 1
-                        elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then
-                            child.ImageTransparency = 1
-                        end
-                    end
-                    task.delay(0.02 * (i - 1), function()
-                        tween(content, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {Position = UDim2.new(0, 0, 0, 0)})
-                        for _, child in ipairs(content:GetDescendants()) do
-                            if child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("TextBox") then
-                                tween(child, 0.25, nil, nil, {TextTransparency = 0})
-                            elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then
-                                tween(child, 0.25, nil, nil, {ImageTransparency = 0})
-                            end
-                        end
-                    end)
-                end
-            end
-        end
-    end
-
     -- Page factory
     local function createPage(name: string)
         -- Button in PageBar

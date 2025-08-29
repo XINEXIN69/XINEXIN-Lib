@@ -74,7 +74,7 @@ end
 -- Theme presets
 local Themes = {
     DarkYellow = {
-        Font = Enum.Font.Arcade -- pixel-styled bold font
+        Font = Enum.Font.Arcade, -- pixel-styled bold font
         TextColor = rgb(255,255,255),
         Backdrop = rgb(18,18,18),
         Window = rgb(24,24,24),

@@ -310,7 +310,7 @@ function Library.new(config: {Name: string}?)
     end))
 
     -- Selection helpers
-    local function setSelectedPage(name: string)
+    local function setSelectedPage(name)
     for pName, frame in pairs(Pages) do
         frame.Visible = (pName == name)
     end
@@ -323,16 +323,13 @@ function Library.new(config: {Name: string}?)
     end
     SelectedPageName = name
 
-    -- Section slide-in animation
+    -- Section slide-in animation (ไม่ซ่อนข้อความ/รูปภาพ)
     local secs = SectionsByPage[name]
     if secs then
         for i, sec in ipairs(secs) do
             local content = sec:FindFirstChild("Content")
             if content and content:IsA("Frame") then
-                -- เริ่มเลื่อนจาก offset เล็กน้อย
                 content.Position = UDim2.new(0, 8, 0, 0)
-
-                -- ✅ ไม่ยุ่งกับ TextTransparency / ImageTransparency อีก
                 task.delay(0.02 * (i - 1), function()
                     tween(content, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
                         Position = UDim2.new(0, 0, 0, 0)

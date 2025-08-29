@@ -309,46 +309,28 @@ function Library.new(config: {Name: string}?)
         end
     end))
 
-    -- Selection helpers
-    local function setSelectedPage(name)
-    -- แสดงเฉพาะ Page ที่เลือก
-    for pName, frame in pairs(Pages) do
-        frame.Visible = (pName == name)
-    end
+    -- Section slide-in animation (Header ไม่ถูกเลื่อน)
+local secs = SectionsByPage[name]
+if secs then
+    for i, sec in ipairs(secs) do
+        local content = sec:FindFirstChild("Content")
+        local header = sec:FindFirstChild("Header")
+        
+        if content and content:IsA("Frame") then
+            -- เริ่มเลื่อนจาก offset เล็กน้อย
+            content.Position = UDim2.new(0, 8, 0, 0)
 
-    -- อัปเดตสีปุ่ม Page
-    for bName, btn in pairs(PageButtons) do
-        if bName == name then
-            tween(btn, 0.12, nil, nil, {
-                BackgroundColor3 = Theme.Accent,
-                TextColor3 = Theme.Background
-            })
-        else
-            tween(btn, 0.12, nil, nil, {
-                BackgroundColor3 = Theme.Element,
-                TextColor3 = Theme.Text
-            })
+            -- Slide-in เฉพาะ Content
+            task.delay(0.02 * (i - 1), function()
+                tween(content, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+                    Position = UDim2.new(0, 0, 0, 0)
+                })
+            end)
         end
-    end
 
-    SelectedPageName = name
-
-    -- Section slide-in animation (ไม่ซ่อนข้อความ/รูปภาพ)
-    local secs = SectionsByPage[name]
-    if secs then
-        for i, sec in ipairs(secs) do
-            local content = sec:FindFirstChild("Content")
-            if content and content:IsA("Frame") then
-                -- เริ่มเลื่อนจาก offset เล็กน้อย
-                content.Position = UDim2.new(0, 8, 0, 0)
-
-                -- Slide-in เฉพาะตำแหน่ง
-                task.delay(0.02 * (i - 1), function()
-                    tween(content, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
-                        Position = UDim2.new(0, 0, 0, 0)
-                    })
-                end)
-            end
+        -- Header อยู่คงที่
+        if header and header:IsA("TextLabel") then
+            header.Position = header.Position  -- ไม่เปลี่ยนอะไร
         end
     end
 end

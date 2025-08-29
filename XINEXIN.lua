@@ -311,18 +311,37 @@ function Library.new(config: {Name: string}?)
 
     -- Selection helpers
     local function setSelectedPage(name: string)
-        for pName, frame in pairs(Pages) do
-            frame.Visible = (pName == name)
+    for pName, frame in pairs(Pages) do
+        frame.Visible = (pName == name)
+    end
+    for bName, btn in pairs(PageButtons) do
+        if bName == name then
+            tween(btn, 0.12, nil, nil, {BackgroundColor3 = Theme.Accent, TextColor3 = Theme.Background})
+        else
+            tween(btn, 0.12, nil, nil, {BackgroundColor3 = Theme.Element, TextColor3 = Theme.Text})
         end
-        for bName, btn in pairs(PageButtons) do
-            if bName == name then
-                tween(btn, 0.12, nil, nil, {BackgroundColor3 = Theme.Accent, TextColor3 = Theme.Background})
-            else
-                tween(btn, 0.12, nil, nil, {BackgroundColor3 = Theme.Element, TextColor3 = Theme.Text})
+    end
+    SelectedPageName = name
+
+    -- Section slide-in animation
+    local secs = SectionsByPage[name]
+    if secs then
+        for i, sec in ipairs(secs) do
+            local content = sec:FindFirstChild("Content")
+            if content and content:IsA("Frame") then
+                -- เริ่มเลื่อนจาก offset เล็กน้อย
+                content.Position = UDim2.new(0, 8, 0, 0)
+
+                -- ✅ ไม่ยุ่งกับ TextTransparency / ImageTransparency อีก
+                task.delay(0.02 * (i - 1), function()
+                    tween(content, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+                        Position = UDim2.new(0, 0, 0, 0)
+                    })
+                end)
             end
         end
-        SelectedPageName = name
-
+    end
+end
         -- Section slide-in animation
         local secs = SectionsByPage[name]
         if secs then

@@ -287,49 +287,34 @@ function Library.new(config: {Name: string}?)
     end))
 
     -- Selection helpers
-    local function setSelectedPage(name: string)
-        for pName, frame in pairs(Pages) do
-            frame.Visible = (pName == name)
+    local function setSelectedPage(name)
+    for pName, frame in pairs(Pages) do
+        frame.Visible = (pName == name)
+    end
+    for bName, btn in pairs(PageButtons) do
+        if bName == name then
+            tween(btn, 0.12, nil, nil, {BackgroundColor3 = Theme.Accent, TextColor3 = Theme.Background})
+        else
+            tween(btn, 0.12, nil, nil, {BackgroundColor3 = Theme.Element, TextColor3 = Theme.Text})
         end
-        for bName, btn in pairs(PageButtons) do
-            if bName == name then
-                tween(btn, 0.12, nil, nil, {BackgroundColor3 = Theme.Accent, TextColor3 = Theme.Background})
-            else
-                tween(btn, 0.12, nil, nil, {BackgroundColor3 = Theme.Element, TextColor3 = Theme.Text})
-            end
-        end
-        SelectedPageName = name
+    end
+    SelectedPageName = name
 
-        -- Section slide-in animation
-        local secs = SectionsByPage[name]
-        if secs then
-            for i, sec in ipairs(secs) do
-                local content = sec:FindFirstChild("Content")
-                if content and content:IsA("Frame") then
-                    content.Position = UDim2.new(0, 8, 0, 0)
-                    content.BackgroundTransparency = content.BackgroundTransparency -- keep
-                    for _, child in ipairs(content:GetDescendants()) do
-                        if child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("TextBox") then
-                            child.TextTransparency = 1
-                        elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then
-                            child.ImageTransparency = 1
-                        end
-                    end
-                    task.delay(0.02 * (i - 1), function()
-                        tween(content, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {Position = UDim2.new(0, 0, 0, 0)})
-                        for _, child in ipairs(content:GetDescendants()) do
-                            if child:IsA("TextLabel") or child:IsA("TextButton") or child:IsA("TextBox") then
-                                tween(child, 0.25, nil, nil, {TextTransparency = 0})
-                            elseif child:IsA("ImageLabel") or child:IsA("ImageButton") then
-                                tween(child, 0.25, nil, nil, {ImageTransparency = 0})
-                            end
-                        end
-                    end)
-                end
+    local secs = SectionsByPage[name]
+    if secs then
+        for i, sec in ipairs(secs) do
+            local content = sec:FindFirstChild("Content")
+            if content then
+                content.Position = UDim2.new(0, 8, 0, 0)
+                task.delay(0.02 * (i - 1), function()
+                    tween(content, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+                        Position = UDim2.new(0, 0, 0, 0)
+                    })
+                end)
             end
         end
     end
-
+end
     -- Page factory
     local function createPage(name: string)
         -- Button in PageBar
@@ -399,34 +384,49 @@ function Library.new(config: {Name: string}?)
 
         local PageAPI = {}
 
-        function PageAPI.addSection(secName: string)
-            local Section = new("Frame", {
-                Name = "Section_" .. secName,
-                BackgroundColor3 = Theme.Secondary,
-                Size = UDim2.new(1, 0, 0, 80),
-            }, PageFrame)
-            addCorner(Section, 8)
-            new("UIStroke", {ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = Theme.Stroke, Thickness = 1}, Section)
+        function PageAPI:addSection(secName)
+    local Section = new("Frame", {
+        Name = "Section_" .. tostring(secName),
+        BackgroundColor3 = Theme.Secondary,
+        Size = UDim2.new(1, 0, 0, 80),
+        ClipsDescendants = false, -- กัน Header โดนตัด
+        Parent = self.PageFrame
+    })
+    addCorner(Section, 8)
+    new("UIStroke", {
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+        Color = Theme.Stroke,
+        Thickness = 1
+    }, Section)
 
-            local Header = new("TextLabel", {
-                Name = "Header",
-                BackgroundTransparency = 1,
-                Text = secName,
-                Font = PIXEL_FONT,
-                TextSize = 16,
-                TextColor3 = Theme.SubText,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Position = UDim2.new(0, 10, 0, 6),
-                Size = UDim2.new(1, -20, 0, 18),
-            }, Section)
+    -- Header แยกออกมา
+    local Header = new("TextLabel", {
+        Name = "Header",
+        BackgroundTransparency = 1,
+        Text = tostring(secName),
+        Font = PIXEL_FONT,
+        TextSize = 16,
+        TextColor3 = Theme.SubText,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        Position = UDim2.new(0, 10, 0, 6),
+        Size = UDim2.new(1, -20, 0, 18),
+        Parent = Section
+    })
 
-            local Content = new("Frame", {
-                Name = "Content",
-                BackgroundTransparency = 1,
-                Position = UDim2.new(0, 10, 0, 28),
-                Size = UDim2.new(1, -20, 1, -38),
-            }, Section)
+    -- Content อยู่ใต้ Header
+    local Content = new("Frame", {
+        Name = "Content",
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0, 10, 0, 28),
+        Size = UDim2.new(1, -20, 1, -38),
+        Parent = Section
+    })
 
+    SectionsByPage[self.PageName] = SectionsByPage[self.PageName] or {}
+    table.insert(SectionsByPage[self.PageName], Section)
+
+    return setmetatable({Section = Section, Content = Content}, {__index = SectionAPI})
+end
             local Layout = new("UIListLayout", {
                 FillDirection = Enum.FillDirection.Vertical,
                 SortOrder = Enum.SortOrder.LayoutOrder,

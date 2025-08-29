@@ -992,13 +992,11 @@ function Library.new(config: {Name: string}?)
         return page
     end
 
-    function UI.addNotify(message: string, duration: number?)
+    function UI.addNotify(message, duration)
     duration = duration or 3
-
-    -- ป้องกันถ้า message ไม่ใช่ string
     message = tostring(message)
 
-    -- Container สำหรับ Toast ทั้งหมด
+    -- สร้าง/หา container ด้านขวาบน
     local ToastContainer = Screen:FindFirstChild("ToastContainer")
     if not ToastContainer then
         ToastContainer = Instance.new("Frame")
@@ -1007,6 +1005,7 @@ function Library.new(config: {Name: string}?)
         ToastContainer.Position = UDim2.new(1, -20, 0, 20)
         ToastContainer.Size = UDim2.new(0, 300, 1, -40)
         ToastContainer.BackgroundTransparency = 1
+        ToastContainer.ZIndex = 200
         ToastContainer.Parent = Screen
 
         local layout = Instance.new("UIListLayout")
@@ -1018,23 +1017,27 @@ function Library.new(config: {Name: string}?)
         layout.Parent = ToastContainer
     end
 
-    -- ตัว Toast
+    -- กล่อง toast
     local Toast = Instance.new("Frame")
-    Toast.Size = UDim2.new(0, 0, 0, 36)
+    Toast.Name = "Toast"
+    Toast.Size = UDim2.new(0, 0, 0, 36) -- เริ่ม 0 เพื่อนไหลเข้า
     Toast.BackgroundColor3 = Theme.Secondary
     Toast.BackgroundTransparency = 0
     Toast.BorderSizePixel = 0
     Toast.ClipsDescendants = true
+    Toast.ZIndex = 201
     Toast.Parent = ToastContainer
+
     addCorner(Toast, 8)
-    Instance.new("UIStroke", {
-        Color = Theme.Stroke,
-        Thickness = 1,
-        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-        Parent = Toast
-    })
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Theme.Stroke
+    stroke.Thickness = 1
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Parent = Toast
 
     local Label = Instance.new("TextLabel")
+    Label.Name = "Text"
     Label.BackgroundTransparency = 1
     Label.Font = PIXEL_FONT
     Label.Text = message
@@ -1043,18 +1046,30 @@ function Library.new(config: {Name: string}?)
     Label.TextXAlignment = Enum.TextXAlignment.Left
     Label.Size = UDim2.new(1, -16, 1, 0)
     Label.Position = UDim2.new(0, 8, 0, 0)
+    Label.ZIndex = 202
     Label.Parent = Toast
 
-    -- Tween เข้ามาจากขวา
-    Toast.Size = UDim2.new(0, 0, 0, 36)
+    -- คำนวณความกว้างให้พอดีข้อความ
+    local TextService = game:GetService("TextService")
+    local bounds = TextService:GetTextSize(message, 14, PIXEL_FONT, Vector2.new(300, 36))
+    local targetW = math.clamp(bounds.X + 24, 140, 300)
+
+    -- สไลด์เข้าด้วยการขยายความกว้าง (ลักษณะเหมือนเลื่อนจากขวา)
     tween(Toast, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
-        Size = UDim2.new(0, math.clamp(Label.TextBounds.X + 24, 140, 300), 0, 36)
+        Size = UDim2.new(0, targetW, 0, 36)
     })
 
-    -- รอแล้ว Tween ออก
+    -- รอแล้วสไลด์ออก
     task.delay(duration, function()
-        tween(Toast, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In, {Size = UDim2.new(0, 0, 0, 36)}).Completed:Wait()
-        Toast:Destroy()
+        if Toast and Toast.Parent then
+            local tw = tween(Toast, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In, {
+                Size = UDim2.new(0, 0, 0, 36)
+            })
+            if tw and tw.Completed then
+                pcall(function() tw.Completed:Wait() end)
+            end
+            if Toast then Toast:Destroy() end
+        end
     end)
 end
 

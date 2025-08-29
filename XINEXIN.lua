@@ -878,13 +878,13 @@ function Library.new(config: {Name: string}?)
 
     -- ✅ ย้าย Popup ไปอยู่ใน ScreenGui เพื่อไม่โดน Clip
     local Popup = new("Frame", {
-        Visible = false,
-        BackgroundColor3 = Theme.Secondary,
-        Size = UDim2.new(0, 200, 0, 6 + (#options * 28)),
-        ClipsDescendants = false,
-        ZIndex = 100,
-        Parent = Screen, -- อยู่บนสุด
-    })
+    Visible = false,
+    BackgroundColor3 = Theme.Secondary,
+    Size = UDim2.new(0, 200, 0, 6 + (#options * 28)),
+    Position = UDim2.new(0, Btn.Position.X.Offset, 0, Btn.Position.Y.Offset + Btn.Size.Y.Offset),
+    ZIndex = 100,
+    Parent = Row, -- ✅ อยู่ใน Row เดิม
+})
     addCorner(Popup, 6)
     new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Popup)
 

@@ -995,6 +995,9 @@ function Library.new(config: {Name: string}?)
     function UI.addNotify(message: string, duration: number?)
     duration = duration or 3
 
+    -- ป้องกันถ้า message ไม่ใช่ string
+    message = tostring(message)
+
     -- Container สำหรับ Toast ทั้งหมด
     local ToastContainer = Screen:FindFirstChild("ToastContainer")
     if not ToastContainer then
@@ -1024,7 +1027,12 @@ function Library.new(config: {Name: string}?)
     Toast.ClipsDescendants = true
     Toast.Parent = ToastContainer
     addCorner(Toast, 8)
-    Instance.new("UIStroke", {Color = Theme.Stroke, Thickness = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = Toast})
+    Instance.new("UIStroke", {
+        Color = Theme.Stroke,
+        Thickness = 1,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+        Parent = Toast
+    })
 
     local Label = Instance.new("TextLabel")
     Label.BackgroundTransparency = 1
@@ -1039,7 +1047,9 @@ function Library.new(config: {Name: string}?)
 
     -- Tween เข้ามาจากขวา
     Toast.Size = UDim2.new(0, 0, 0, 36)
-    tween(Toast, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {Size = UDim2.new(0, math.clamp(Label.TextBounds.X + 24, 140, 300), 0, 36)})
+    tween(Toast, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+        Size = UDim2.new(0, math.clamp(Label.TextBounds.X + 24, 140, 300), 0, 36)
+    })
 
     -- รอแล้ว Tween ออก
     task.delay(duration, function()
@@ -1047,6 +1057,7 @@ function Library.new(config: {Name: string}?)
         Toast:Destroy()
     end)
 end
+
     function UI.addSelectPage(name: string)
         if not Pages[name] then return end
         setSelectedPage(name)

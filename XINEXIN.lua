@@ -881,6 +881,7 @@ function Library.new(config: {Name: string}?)
                     Size = UDim2.new(0, 200, 0, 6 + (#options * 28)),
                     Position = UDim2.new(1, -210, 0, 34),
                     ClipsDescendants = true,
+                        ZIndex = 51,
                 }, Row)
                 addCorner(Popup, 6)
                 new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Popup)

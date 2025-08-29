@@ -287,34 +287,48 @@ function Library.new(config: {Name: string}?)
     end))
 
     -- Selection helpers
-    local function setSelectedPage(name)
+      local function setSelectedPage(name)
+    -- แสดงเฉพาะ Page ที่เลือก
     for pName, frame in pairs(Pages) do
         frame.Visible = (pName == name)
     end
+
+    -- อัปเดตสีปุ่ม Page
     for bName, btn in pairs(PageButtons) do
         if bName == name then
-            tween(btn, 0.12, nil, nil, {BackgroundColor3 = Theme.Accent, TextColor3 = Theme.Background})
+            tween(btn, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+                BackgroundColor3 = Theme.Accent,
+                TextColor3 = Theme.Background
+            })
         else
-            tween(btn, 0.12, nil, nil, {BackgroundColor3 = Theme.Element, TextColor3 = Theme.Text})
+            tween(btn, 0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+                BackgroundColor3 = Theme.Element,
+                TextColor3 = Theme.Text
+            })
         end
     end
+
     SelectedPageName = name
 
+    -- Slide-in เฉพาะ Content ของ Section
     local secs = SectionsByPage[name]
     if secs then
         for i, sec in ipairs(secs) do
             local content = sec:FindFirstChild("Content")
-            if content then
+            if content and content:IsA("Frame") then
                 content.Position = UDim2.new(0, 8, 0, 0)
                 task.delay(0.02 * (i - 1), function()
-                    tween(content, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
-                        Position = UDim2.new(0, 0, 0, 0)
-                    })
+                    if content and content.Parent then
+                        tween(content, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
+                            Position = UDim2.new(0, 0, 0, 0)
+                        })
+                    end
                 end)
             end
         end
     end
 end
+
     -- Page factory
     local function createPage(name: string)
         -- Button in PageBar
@@ -384,7 +398,7 @@ end
 
         local PageAPI = {}
 
-        function PageAPI:addSection(secName)
+            function PageAPI:addSection(secName)
     local Section = new("Frame", {
         Name = "Section_" .. tostring(secName),
         BackgroundColor3 = Theme.Secondary,
@@ -427,6 +441,7 @@ end
 
     return setmetatable({Section = Section, Content = Content}, {__index = SectionAPI})
 end
+
             local Layout = new("UIListLayout", {
                 FillDirection = Enum.FillDirection.Vertical,
                 SortOrder = Enum.SortOrder.LayoutOrder,

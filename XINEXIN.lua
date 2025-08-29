@@ -1,26 +1,3 @@
---!strict
--- XINEXIN HUB - Minimal / Flat UI Library for Delta Executor
--- Theme: Dark Yellow, Pixel Bold, White text
--- Window: Size UDim2.new(0, 735, 0, 379), Position UDim2.new(0.26607, 0, 0.26773, 0)
--- API:
---  UI.addPage(name) -> Page
---  UI.addNotify(message)
---  UI.addSelectPage(name)
---  UI.SetTheme(themeTable | "DarkYellow")
---  UI.Toggle()
--- Page:
---  Page.addSection(name) -> Section
---  Page.addResize(sizeUDim2)
--- Section:
---  Section:addButton(name, callback)
---  Section:addToggle(name, default, callback)
---  Section:addTextbox(name, default, callback)
---  Section:addKeybind(name, defaultKeyCode, callback)
---  Section:addColorPicker(name, defaultColor3, callback)
---  Section:addSlider(name, min, max, default, callback)
---  Section:addDropdown(name, optionsArray, default, callback)
---  Section:Resize(sizeUDim2)
-
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -422,18 +399,15 @@ function Library.new(config: {Name: string}?)
 
         local PageAPI = {}
 
-              function PageAPI:addSection(secName)
+        function PageAPI.addSection(secName: string)
             local Section = new("Frame", {
                 Name = "Section_" .. secName,
                 BackgroundColor3 = Theme.Secondary,
                 Size = UDim2.new(1, 0, 0, 80),
-                ClipsDescendants = false, -- กันตัด Header
-                Parent = self.PageFrame
-            })
+            }, PageFrame)
             addCorner(Section, 8)
             new("UIStroke", {ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Color = Theme.Stroke, Thickness = 1}, Section)
-        
-            -- Header แยกออกมา
+
             local Header = new("TextLabel", {
                 Name = "Header",
                 BackgroundTransparency = 1,
@@ -444,23 +418,14 @@ function Library.new(config: {Name: string}?)
                 TextXAlignment = Enum.TextXAlignment.Left,
                 Position = UDim2.new(0, 10, 0, 6),
                 Size = UDim2.new(1, -20, 0, 18),
-                Parent = Section
-            })
-        
-            -- Content อยู่ใต้ Header
+            }, Section)
+
             local Content = new("Frame", {
                 Name = "Content",
                 BackgroundTransparency = 1,
                 Position = UDim2.new(0, 10, 0, 28),
                 Size = UDim2.new(1, -20, 1, -38),
-                Parent = Section
-            })
-        
-            SectionsByPage[self.PageName] = SectionsByPage[self.PageName] or {}
-            table.insert(SectionsByPage[self.PageName], Section)
-        
-            return setmetatable({Section = Section, Content = Content}, {__index = SectionAPI})
-        end
+            }, Section)
 
             local Layout = new("UIListLayout", {
                 FillDirection = Enum.FillDirection.Vertical,
@@ -892,7 +857,7 @@ function Library.new(config: {Name: string}?)
                 }
             end
 
-                    function SectionAPI:addDropdown(ddName: string, options: {string}, default: string?, callback: ((opt: string) -> ())?)
+            function SectionAPI:addDropdown(ddName, options, default, callback)
             local Row = makeRowBase(34)
             label(Row, ddName)
         
@@ -907,18 +872,19 @@ function Library.new(config: {Name: string}?)
                 Size = UDim2.new(0, 200, 0, 26),
                 Position = UDim2.new(1, -210, 0.5, -13),
                 ZIndex = 50,
-            }, Row)
+                Parent = Row
+            })
             addCorner(Btn, 6)
             new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Btn)
         
-            -- ✅ ย้าย Popup ไปอยู่ใน ScreenGui เพื่อไม่โดน Clip
+            -- Popup แยกออกมาอยู่ใน ScreenGui
             local Popup = new("Frame", {
                 Visible = false,
                 BackgroundColor3 = Theme.Secondary,
                 Size = UDim2.new(0, 200, 0, 6 + (#options * 28)),
                 ClipsDescendants = false,
                 ZIndex = 100,
-                Parent = Screen, -- อยู่บนสุด
+                Parent = Screen
             })
             addCorner(Popup, 6)
             new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Popup)
@@ -926,15 +892,17 @@ function Library.new(config: {Name: string}?)
             local OptList = new("UIListLayout", {
                 Padding = UDim.new(0, 2),
                 SortOrder = Enum.SortOrder.LayoutOrder,
-            }, Popup)
+                Parent = Popup
+            })
             new("UIPadding", {
                 PaddingTop = UDim.new(0, 6),
                 PaddingLeft = UDim.new(0, 6),
                 PaddingRight = UDim.new(0, 6),
                 PaddingBottom = UDim.new(0, 6),
-            }, Popup)
+                Parent = Popup
+            })
         
-            local function choose(opt: string)
+            local function choose(opt)
                 Current = opt
                 Btn.Text = opt
                 Popup.Visible = false
@@ -951,7 +919,8 @@ function Library.new(config: {Name: string}?)
                     TextColor3 = Theme.Text,
                     Size = UDim2.new(1, 0, 0, 24),
                     ZIndex = 101,
-                }, Popup)
+                    Parent = Popup
+                })
                 addCorner(Opt, 4)
                 Opt.MouseEnter:Connect(function()
                     tween(Opt, 0.08, nil, nil, {BackgroundColor3 = Theme.ElementHover})
@@ -962,19 +931,31 @@ function Library.new(config: {Name: string}?)
                 Opt.MouseButton1Click:Connect(function() choose(opt) end)
             end
         
-            Btn.MouseButton1Click:Connect(function()
-                -- คำนวณตำแหน่ง Popup ให้ตรงกับปุ่ม
+            -- ฟังก์ชันอัปเดตตำแหน่ง Popup ให้ตรงกับปุ่ม
+            local function updatePopupPos()
                 local absPos = Btn.AbsolutePosition
                 local absSize = Btn.AbsoluteSize
                 Popup.Position = UDim2.fromOffset(absPos.X, absPos.Y + absSize.Y)
+            end
+        
+            -- อัปเดตตำแหน่งทุกเฟรมเมื่อ Popup เปิด
+            RunService.RenderStepped:Connect(function()
+                if Popup.Visible then
+                    updatePopupPos()
+                end
+            end)
+        
+            Btn.MouseButton1Click:Connect(function()
+                updatePopupPos()
                 Popup.Visible = not Popup.Visible
             end)
         
             return {
-                Set = function(opt: string) choose(opt) end,
+                Set = function(opt) choose(opt) end,
                 Get = function() return Current end
             }
         end
+
             function SectionAPI:Resize(size: UDim2)
                 Section.Size = size
             end
@@ -1001,86 +982,33 @@ function Library.new(config: {Name: string}?)
         return page
     end
 
-    function UI.addNotify(message, duration)
-    duration = duration or 3
-    message = tostring(message)
-
-    -- สร้าง/หา container ด้านขวาบน
-    local ToastContainer = Screen:FindFirstChild("ToastContainer")
-    if not ToastContainer then
-        ToastContainer = Instance.new("Frame")
-        ToastContainer.Name = "ToastContainer"
-        ToastContainer.AnchorPoint = Vector2.new(1, 0)
-        ToastContainer.Position = UDim2.new(1, -20, 0, 20)
-        ToastContainer.Size = UDim2.new(0, 300, 1, -40)
-        ToastContainer.BackgroundTransparency = 1
-        ToastContainer.ZIndex = 200
-        ToastContainer.Parent = Screen
-
-        local layout = Instance.new("UIListLayout")
-        layout.FillDirection = Enum.FillDirection.Vertical
-        layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-        layout.VerticalAlignment = Enum.VerticalAlignment.Top
-        layout.Padding = UDim.new(0, 8)
-        layout.SortOrder = Enum.SortOrder.LayoutOrder
-        layout.Parent = ToastContainer
+    function UI.addNotify(message: string)
+        local Toast = new("Frame", {
+            BackgroundColor3 = Theme.Secondary,
+            Size = UDim2.new(0, 0, 0, 34),
+            BackgroundTransparency = 0,
+        }, Toasts)
+        addCorner(Toast, 8)
+        new("UIStroke", {Color = Theme.Stroke, Thickness = 1}, Toast)
+        local Label = new("TextLabel", {
+            BackgroundTransparency = 1,
+            Font = PIXEL_FONT,
+            Text = message,
+            TextColor3 = Theme.Text,
+            TextSize = 14,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            Size = UDim2.new(1, -16, 1, 0),
+            Position = UDim2.new(0, 8, 0, 0),
+        }, Toast)
+        Toast.Size = UDim2.new(0, 12, 0, 34)
+        tween(Toast, 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {Size = UDim2.new(0, math.clamp(Label.TextBounds.X + 24, 140, 300), 0, 34)})
+        task.delay(2.2, function()
+            tween(Toast, 0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In, {BackgroundTransparency = 1})
+            tween(Label, 0.12, nil, nil, {TextTransparency = 1}).Completed:Wait()
+            Toast:Destroy()
+        end)
     end
 
-    -- กล่อง toast
-    local Toast = Instance.new("Frame")
-    Toast.Name = "Toast"
-    Toast.Size = UDim2.new(0, 0, 0, 36) -- เริ่ม 0 เพื่อนไหลเข้า
-    Toast.BackgroundColor3 = Theme.Secondary
-    Toast.BackgroundTransparency = 0
-    Toast.BorderSizePixel = 0
-    Toast.ClipsDescendants = true
-    Toast.ZIndex = 201
-    Toast.Parent = ToastContainer
-
-    addCorner(Toast, 8)
-
-    local stroke = Instance.new("UIStroke")
-    stroke.Color = Theme.Stroke
-    stroke.Thickness = 1
-    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    stroke.Parent = Toast
-
-    local Label = Instance.new("TextLabel")
-    Label.Name = "Text"
-    Label.BackgroundTransparency = 1
-    Label.Font = PIXEL_FONT
-    Label.Text = message
-    Label.TextColor3 = Theme.Text
-    Label.TextSize = 14
-    Label.TextXAlignment = Enum.TextXAlignment.Left
-    Label.Size = UDim2.new(1, -16, 1, 0)
-    Label.Position = UDim2.new(0, 8, 0, 0)
-    Label.ZIndex = 202
-    Label.Parent = Toast
-
-    -- คำนวณความกว้างให้พอดีข้อความ
-    local TextService = game:GetService("TextService")
-    local bounds = TextService:GetTextSize(message, 14, PIXEL_FONT, Vector2.new(300, 36))
-    local targetW = math.clamp(bounds.X + 24, 140, 300)
-
-    -- สไลด์เข้าด้วยการขยายความกว้าง (ลักษณะเหมือนเลื่อนจากขวา)
-    tween(Toast, 0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, {
-        Size = UDim2.new(0, targetW, 0, 36)
-    })
-
-    -- รอแล้วสไลด์ออก
-    task.delay(duration, function()
-        if Toast and Toast.Parent then
-            local tw = tween(Toast, 0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In, {
-                Size = UDim2.new(0, 0, 0, 36)
-            })
-            if tw and tw.Completed then
-                pcall(function() tw.Completed:Wait() end)
-            end
-            if Toast then Toast:Destroy() end
-        end
-    end)
-end
     function UI.addSelectPage(name: string)
         if not Pages[name] then return end
         setSelectedPage(name)
